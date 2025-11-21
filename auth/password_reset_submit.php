@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../paths.php';
 require_once __DIR__ . '/../db.php';
 
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect_to('auth/password_reset_request.php');
     exit;
@@ -25,20 +26,19 @@ if (strlen($password) < 6) {
     exit;
 }
 
+// Validate token and get user
 try {
-    // Validate token and get user
-    $stmt = $pdo->prepare('
-        SELECT user_id, expires_at FROM password_resets WHERE token = :token LIMIT 1');
+    $stmt = $pdo->prepare('SELECT user_id, expires_at FROM password_resets WHERE token = :token LIMIT 1');
     $stmt->execute([':token' => $token]);
-    $row = $stmt->fetch();
+    $reset = $stmt->fetch();
 
-    if (!$row) {
+    if (!$reset) {
         redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
         exit;
     }
-
-    $user_id = $row['user_id'];
-    $expires_at = $row['expires_at'];
+    
+    $user_id = $reset['user_id'];
+    $expires_at = $reset['expires_at'];
 
     if (strtotime($expires_at) < time()) {
         // Token expired, delete it
@@ -53,7 +53,7 @@ try {
     $stmt = $pdo->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id');
     $stmt->execute([
         ':password_hash' => $hashed_password,
-        ':id' => $user_id,
+        ':id' => $user_id
     ]);
 
     // Delete token after use

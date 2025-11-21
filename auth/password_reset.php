@@ -27,16 +27,16 @@ try {
         JOIN users ON password_resets.user_id = users.id 
         WHERE password_resets.token = :token LIMIT 1');
     $stmt->execute([':token' => $token]);
-    $row = $stmt->fetch();
+    $reset_data = $stmt->fetch();
 
-    if (!$row) {
+    if (!$reset_data) {
         redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
         exit;
     }
-
-    $username = $row['username'];
-    $expires_at = $row['expires_at'];
-    $user_id = $row['user_id'];
+    
+    $username = $reset_data['username'];
+    $expires_at = $reset_data['expires_at'];
+    $user_id = $reset_data['user_id'];
 
     if (strtotime($expires_at) < time()) {
         // Token expired, delete it
@@ -46,7 +46,7 @@ try {
         exit;
     }
 } catch (PDOException $e) {
-    redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Database error.'));
     exit;
 }
 ?>
