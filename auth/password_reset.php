@@ -1,62 +1,54 @@
 <?php
 session_start();
-
-$host = 'localhost';
-$dbname = 'OJT';
-$user = 'root';
-$pass = '';
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die('Connection failed: '.$conn->connect_error);
-}
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 if (isset($_SESSION['username'])) {
     if ($_SESSION['role'] === 'admin') {
-        header('Location: admin_panel.php');
+        redirect_to('admin/admin_panel.php');
     } else {
-        header('Location: user_panel.php');
+        redirect_to('student/user_panel.php');
     }
     exit;
 }
 
 if (!isset($_GET['token']) || empty($_GET['token'])) {
-    header('Location: password_reset_request.php?error=' . urlencode('Invalid or missing token.'));
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or missing token.'));
     exit;
 }
 
 $token = $_GET['token'];
 
 // Validate token
-$stmt = $conn->prepare('
-    SELECT users.username, password_resets.expires_at, password_resets.user_id 
-    FROM password_resets 
-    JOIN users ON password_resets.user_id = users.id 
-    WHERE password_resets.token = ? LIMIT 1');
-$stmt->bind_param('s', $token);
-$stmt->execute();
-$stmt->store_result();
-
-if ($stmt->num_rows !== 1) {
-    $stmt->close();
-    header('Location: password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
+try {
+    $stmt = $conn->prepare('
+        SELECT users.username, password_resets.expires_at, password_resets.user_id 
+        FROM password_resets 
+        JOIN users ON password_resets.user_id = users.id 
+        WHERE password_resets.token = ? LIMIT 1');
+    $stmt->execute([$token]);
+    $row = $stmt->fetch();
+} catch (PDOException $e) {
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Database error. Please try again later.'));
     exit;
 }
 
-$stmt->bind_result($username, $expires_at, $user_id);
-$stmt->fetch();
+if (!$row) {
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
+    exit;
+}
+
+$username = $row['username'];
+$expires_at = $row['expires_at'];
+$user_id = $row['user_id'];
 
 if (strtotime($expires_at) < time()) {
     // Token expired, delete it
-    $stmt->close();
     $del_stmt = $conn->prepare('DELETE FROM password_resets WHERE token = ?');
-    $del_stmt->bind_param('s', $token);
-    $del_stmt->execute();
-    $del_stmt->close();
-    header('Location: password_reset_request.php?error=' . urlencode('Token expired. Please request a new reset.'));
+    $del_stmt->execute([$token]);
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Token expired. Please request a new reset.'));
     exit;
 }
-$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">

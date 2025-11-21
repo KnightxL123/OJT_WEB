@@ -1,16 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
-
-$host = 'localhost';
-$dbname = 'OJT';
-$user = 'root';
-$pass = '';
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die('Connection failed: '.$conn->connect_error);
-}
+require_once __DIR__ . '/../config/DBconfig.php';
 
 function is_valid_email($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL);
@@ -81,103 +72,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Check if department exists
     $stmt = $conn->prepare("SELECT id FROM departments WHERE id = ? AND status = 'active' AND deleted_at IS NULL");
-    $stmt->bind_param('i', $department_id);
-    $stmt->execute();
-    $stmt->store_result();
-    if ($stmt->num_rows === 0) {
-        $stmt->close();
+    $stmt->execute([$department_id]);
+    $department = $stmt->fetch();
+    if (!$department) {
         redirect_to('auth/register.php?error=' . urlencode('Invalid department selected.'));
         exit;
     }
-    $stmt->close();
 
     // For advisers, check program and section
     if ($role === 'user') {
         // Check program exists and belongs to department
         $stmt = $conn->prepare("SELECT id FROM programs WHERE id = ? AND department_id = ? AND status = 'active'");
-        $stmt->bind_param('ii', $program_id, $department_id);
-        $stmt->execute();
-        $stmt->store_result();
-        if ($stmt->num_rows === 0) {
-            $stmt->close();
+        $stmt->execute([$program_id, $department_id]);
+        $program = $stmt->fetch();
+        if (!$program) {
             redirect_to('auth/register.php?error=' . urlencode('Invalid program selected.'));
             exit;
         }
-        $stmt->close();
         
         // Check section exists and belongs to program
         $stmt = $conn->prepare("SELECT id FROM sections WHERE id = ? AND program_id = ?");
-        $stmt->bind_param('ii', $section_id, $program_id);
-        $stmt->execute();
-        $stmt->store_result();
-        if ($stmt->num_rows === 0) {
-            $stmt->close();
+        $stmt->execute([$section_id, $program_id]);
+        $section = $stmt->fetch();
+        if (!$section) {
             redirect_to('auth/register.php?error=' . urlencode('Invalid section selected.'));
             exit;
         }
-        $stmt->close();
     }
 
     // Check username or email exists
     $stmt = $conn->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
-    $stmt->bind_param('ss', $username, $email);
-    $stmt->execute();
-    $stmt->store_result();
-    if ($stmt->num_rows > 0) {
-        $stmt->close();
+    $stmt->execute([$username, $email]);
+    $existing = $stmt->fetch();
+    if ($existing) {
         redirect_to('auth/register.php?error=' . urlencode('Username or email already taken.'));
         exit;
     }
-    $stmt->close();
 
     // Hash password and insert new user
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
-    
-    if ($role === 'coordinator') {
-        $stmt = $conn->prepare('INSERT INTO users (username, email, password_hash, role, department_id) VALUES (?, ?, ?, ?, ?)');
-        $stmt->bind_param('ssssi', $username, $email, $password_hash, $role, $department_id);
-    } else {
-        // For advisers, we'll store the section_id in a separate table
-        $conn->begin_transaction();
-        
-        try {
+
+    try {
+        if ($role === 'coordinator') {
+            $stmt = $conn->prepare('INSERT INTO users (username, email, password_hash, role, department_id) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([$username, $email, $password_hash, $role, $department_id]);
+        } else {
+            // For advisers, we'll store the section_id in a separate table
+            $conn->beginTransaction();
+
             // Insert user
             $stmt = $conn->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)');
-            $stmt->bind_param('ssss', $username, $email, $password_hash, $role);
-            $stmt->execute();
-            $user_id = $conn->insert_id;
-            $stmt->close();
-            
+            $stmt->execute([$username, $email, $password_hash, $role]);
+            $user_id = $conn->lastInsertId();
+
             // Insert adviser
             $stmt = $conn->prepare('INSERT INTO advisers (name, email, department_id) VALUES (?, ?, ?)');
-            $stmt->bind_param('ssi', $username, $email, $department_id);
-            $stmt->execute();
-            $adviser_id = $conn->insert_id;
-            $stmt->close();
-            
+            $stmt->execute([$username, $email, $department_id]);
+            $adviser_id = $conn->lastInsertId();
+
             // Link adviser to section
             $stmt = $conn->prepare('INSERT INTO section_adviser (section_id, adviser_id) VALUES (?, ?)');
-            $stmt->bind_param('ii', $section_id, $adviser_id);
-            $stmt->execute();
-            $stmt->close();
-            
-            $conn->commit();
-            
-            redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
-            exit;
-        } catch (Exception $e) {
-            $conn->rollback();
-            redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
-            exit;
-        }
-    }
+            $stmt->execute([$section_id, $adviser_id]);
 
-    if ($stmt->execute()) {
-        $stmt->close();
+            $conn->commit();
+        }
+
         redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
         exit;
-    } else {
-        $stmt->close();
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
         exit;
     }
