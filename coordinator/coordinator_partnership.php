@@ -133,7 +133,7 @@ function sanitize($str) {
             <li><a href="coordinator_announcement.php"><i class="bi bi-megaphone"></i> Announcement</a></li>
             <li><a href="coordinator_monitor.php"><i class="bi bi-clipboard-data"></i> Monitor</a></li>
             <li><a href="coordinator_documents.php"><i class="bi bi-folder"></i> Documents</a></li>
-            <li><a href="coordinator_manages.php"><i class="bi bi-people"></i> Manage Section</a></li>
+            <li><a href="coordinator_managesection.php"><i class="bi bi-people"></i> Manage Section</a></li>
             <li><a href="coordinator_partnership.php" class="active"><i class="bi bi-handshake"></i> Partnership</a></li>
             <li><a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
         </ul>

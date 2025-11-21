@@ -1,8 +1,8 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
-    header('Location: ../auth/login.php');
-    exit;
+    redirect_to('auth/login.php');
 }
 
 // Database connection with error handling
@@ -344,7 +344,7 @@ try {
     </div>
     <div class="header-icons">
         <a href="#"><i class="bi bi-bell"></i></a>
-        <a href="../student/profile.php"><i class="bi bi-person-circle"></i></a>
+        <a href="<?php echo url_for('student/profile.php'); ?>"><i class="bi bi-person-circle"></i></a>
     </div>
 </header>
 
@@ -352,13 +352,13 @@ try {
     <!-- Sidebar -->
     <nav class="sidebar">
         <ul>
-            <li><a href="admin_panel.php"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-            <li><a href="../documents/documents.php"><i class="bi bi-folder"></i> Documents</a></li>
-            <li><a href="monitoring.php"><i class="bi bi-clipboard-data"></i> Monitoring</a></li>
-            <li><a href="../partnership/partnership.php"><i class="bi bi-handshake"></i> Partnership</a></li>
-            <li><a href="manage.php" class="active"><i class="bi bi-diagram-3"></i> Department</a></li>
-            <li><a href="../announcements/admin_inbox.php"><i class="bi bi-envelope-paper"></i> Sent Announcements</a></li>
-            <li><a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
+            <li><a href="<?php echo url_for('admin/admin_panel.php'); ?>"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+            <li><a href="<?php echo url_for('documents/documents.php'); ?>"><i class="bi bi-folder"></i> Documents</a></li>
+            <li><a href="<?php echo url_for('admin/monitoring.php'); ?>"><i class="bi bi-clipboard-data"></i> Monitoring</a></li>
+            <li><a href="<?php echo url_for('partnership/partnership.php'); ?>"><i class="bi bi-handshake"></i> Partnership</a></li>
+            <li><a href="<?php echo url_for('admin/manage.php'); ?>" class="active"><i class="bi bi-diagram-3"></i> Department</a></li>
+            <li><a href="<?php echo url_for('announcements/admin_inbox.php'); ?>"><i class="bi bi-envelope-paper"></i> Sent Announcements</a></li>
+            <li><a href="<?php echo url_for('auth/logout.php'); ?>"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
         </ul>
     </nav>
 
@@ -402,7 +402,7 @@ try {
                             </span>
                         </div>
                         <div>
-                            <a href="edit_department.php?id=<?= $dept['id'] ?>" class="btn btn-warning btn-sm me-2">
+                            <a href="<?php echo url_for('admin/departments/edit_department.php'); ?>?id=<?= $dept['id'] ?>" class="btn btn-warning btn-sm me-2">
                                 <i class="bi bi-pencil"></i> Edit
                             </a>
                             <a href="?toggle_dept_status&id=<?= $dept['id'] ?>" 
@@ -435,7 +435,7 @@ try {
                                         </span>
                                     </div>
                                     <div class="program-actions">
-                                        <a href="edit_program.php?id=<?= $prog['id'] ?>" class="btn btn-sm btn-outline-warning">
+                                        <a href="<?php echo url_for('admin/departments/edit_program.php'); ?>?id=<?= $prog['id'] ?>" class="btn btn-sm btn-outline-warning">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <a href="?toggle_prog_status&id=<?= $prog['id'] ?>" 

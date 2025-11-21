@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 $host = 'localhost';
 $dbname = 'OJT';
@@ -12,22 +13,19 @@ if ($conn->connect_error) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: password_reset_request.php');
-    exit;
+    redirect_to('auth/password_reset_request.php');
 }
 
 
 $email = trim($_POST['email'] ?? '');
 
 if ($email === '') {
-    header('Location: password_reset_request.php?error=' . urlencode('Please enter your email.'));
-    exit;
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Please enter your email.'));
 }
 
 // Validate email format
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    header('Location: password_reset_request.php?error=' . urlencode('Invalid email address.'));
-    exit;
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid email address.'));
 }
 
 // Check if email exists
@@ -39,8 +37,7 @@ $stmt->store_result();
 if ($stmt->num_rows !== 1) {
     $stmt->close();
     // To avoid email enumeration, show generic message
-    header('Location: password_reset_request.php?msg=' . urlencode('If the email exists, a reset link has been sent.'));
-    exit;
+    redirect_to('auth/password_reset_request.php?msg=' . urlencode('If the email exists, a reset link has been sent.'));
 }
 
 $stmt->bind_result($user_id, $username);
@@ -56,16 +53,15 @@ $stmt = $conn->prepare('INSERT INTO password_resets (user_id, token, expires_at)
 $stmt->bind_param('iss', $user_id, $token, $expires_at);
 if (!$stmt->execute()) {
     $stmt->close();
-    header('Location: password_reset_request.php?error=' . urlencode('Failed to create reset token.'));
-    exit;
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Failed to create reset token.'));
 }
 $stmt->close();
 
 // Send reset email
-$reset_link = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http")
-    . "://{$_SERVER['HTTP_HOST']}"
-    . dirname($_SERVER['PHP_SELF'])
-    . "/password_reset.php?token=$token";
+$scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+$reset_path = url_for('auth/password_reset.php');
+$reset_link = $scheme . '://' . $host . $reset_path . '?token=' . urlencode($token);
 
 // Email headers and body
 $to = $email;
@@ -86,9 +82,8 @@ $mail_sent = mail($to, $subject, $message, $headers);
 // echo "Reset Link (for testing): $reset_link";
 
 if ($mail_sent) {
-    header('Location: password_reset_request.php?msg=' . urlencode('If the email exists, a reset link has been sent.'));
+    redirect_to('auth/password_reset_request.php?msg=' . urlencode('If the email exists, a reset link has been sent.'));
 } else {
-    header('Location: password_reset_request.php?error=' . urlencode('Failed to send reset email.'));
+    redirect_to('auth/password_reset_request.php?error=' . urlencode('Failed to send reset email.'));
 }
-exit;
 ?>

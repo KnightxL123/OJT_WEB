@@ -1,8 +1,8 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
-    header('Location: ../auth/login.php');
-    exit;
+    redirect_to('auth/login.php');
 }
 
 // Database config
@@ -141,7 +141,7 @@ function sanitize($str) {
     </div>
     <div class="header-icons">
     <a href="#"><i class="bi bi-bell"></i></a>
-    <a href="../student/profile.php"><i class="bi bi-person-circle"></i></a>
+    <a href="<?php echo url_for('student/profile.php'); ?>"><i class="bi bi-person-circle"></i></a>
 </div>
 </header>
 
@@ -149,13 +149,13 @@ function sanitize($str) {
 
     <nav class="sidebar">
     <ul>
-        <li><a href="admin_panel.php" class="active"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li><a href="../documents/documents.php"><i class="bi bi-folder"></i> Documents</a></li>
-        <li><a href="../admin/monitoring.php"><i class="bi bi-clipboard-data"></i> Monitoring</a></li>
-        <li><a href="../partnership/partnership.php"><i class="bi bi-handshake"></i> Partnership</a></li>
-        <li><a href="../admin/manage.php"><i class="bi bi-diagram-3"></i> Departments</a></li>
-        <li><a href="../announcements/admin_inbox.php"><i class="bi bi-envelope-paper"></i> Sent Announcements</a></li>
-        <li><a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
+        <li><a href="<?php echo url_for('admin/admin_panel.php'); ?>" class="active"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+        <li><a href="<?php echo url_for('documents/documents.php'); ?>"><i class="bi bi-folder"></i> Documents</a></li>
+        <li><a href="<?php echo url_for('admin/monitoring.php'); ?>"><i class="bi bi-clipboard-data"></i> Monitoring</a></li>
+        <li><a href="<?php echo url_for('partnership/partnership.php'); ?>"><i class="bi bi-handshake"></i> Partnership</a></li>
+        <li><a href="<?php echo url_for('admin/manage.php'); ?>"><i class="bi bi-diagram-3"></i> Departments</a></li>
+        <li><a href="<?php echo url_for('announcements/admin_inbox.php'); ?>"><i class="bi bi-envelope-paper"></i> Sent Announcements</a></li>
+        <li><a href="<?php echo url_for('auth/logout.php'); ?>"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
     </ul>
 </nav>
 
@@ -207,7 +207,7 @@ function sanitize($str) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
-        <a href="../auth/logout.php" class="btn btn-danger">Yes</a>
+        <a href="<?php echo url_for('auth/logout.php'); ?>" class="btn btn-danger">Yes</a>
       </div>
     </div>
   </div>

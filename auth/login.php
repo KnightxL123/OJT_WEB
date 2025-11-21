@@ -1,17 +1,18 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 // Redirect logged in users
 if (isset($_SESSION['user_id'])) {
     switch ($_SESSION['role']) {
         case 'admin':
-            header('Location: ../admin/admin_panel.php');
+            redirect_to('admin/admin_panel.php');
             break;
         case 'coordinator':
-            header('Location: ../coordinator/coordinator_panel.php');
+            redirect_to('coordinator/coordinator_panel.php');
             break;
         default:
-            header('Location: ../student/user_panel.php');
+            redirect_to('student/user_panel.php');
     }
     exit;
 }
@@ -63,8 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $_SESSION['role'] = $user['role'];
                         $_SESSION['department_id'] = $user['department_id'];
                         
-                        header('Location: ../coordinator/coordinator_panel.php');
-                        exit;
+                        redirect_to('coordinator/coordinator_panel.php');
                     }
                 } else {
                     $error = "Login failed: Department not found.";
@@ -77,11 +77,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['role'] = $user['role'];
                 
                 if ($user['role'] === 'admin') {
-                    header('Location: ../admin/admin_panel.php');
+                    redirect_to('admin/admin_panel.php');
                 } else {
-                    header('Location: ../student/user_panel.php');
+                    redirect_to('student/user_panel.php');
                 }
-                exit;
             }
         } else {
             $error = "Invalid password.";

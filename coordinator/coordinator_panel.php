@@ -1,15 +1,14 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 if (!isset($_SESSION['username'])) {
-    header('Location: login.php?error=' . urlencode("Please log in to access the dashboard."));
-    exit;
+    redirect_to('auth/login.php?error=' . urlencode("Please log in to access the dashboard."));
 }
 
 // Only allow coordinators to access this dashboard
 if ($_SESSION['role'] !== 'coordinator') {
-    header('Location: login.php?error=' . urlencode("Unauthorized access. Coordinator role required."));
-    exit;
+    redirect_to('auth/login.php?error=' . urlencode("Unauthorized access. Coordinator role required."));
 }
 
 $host = 'localhost';
@@ -54,8 +53,7 @@ if ($result->num_rows > 0) {
     if ($dept_status === 'inactive') {
         // Department has been deactivated since login
         session_destroy();
-        header('Location: login.php?error=' . urlencode("Your department has been deactivated. Please contact administrator."));
-        exit;
+        redirect_to('auth/login.php?error=' . urlencode("Your department has been deactivated. Please contact administrator."));
     }
 }
 $stmt->close();
@@ -442,7 +440,7 @@ function sanitize($str) {
             <li><a href="coordinator_documents.php"><i class="bi bi-folder"></i> Documents</a></li>
             <li><a href="coordinator_managesection.php"><i class="bi bi-people"></i> Manage Section</a></li>
             <li><a href="coordinator_partnership.php"><i class="bi bi-handshake"></i> Partnership</a></li>
-            <li><a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
+            <li><a href="<?php echo url_for('auth/logout.php'); ?>"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
         </ul>
     </nav>
 

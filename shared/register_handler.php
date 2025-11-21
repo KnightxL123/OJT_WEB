@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 $host = 'localhost';
 $dbname = 'OJT';
@@ -37,43 +38,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Basic validation
     if ($username === '' || $email === '' || $password === '') {
-        header('Location: register.php?error=' . urlencode('Please fill all required fields.'));
+        redirect_to('auth/register.php?error=' . urlencode('Please fill all required fields.'));
         exit;
     }
 
     if (!is_valid_email($email)) {
-        header('Location: register.php?error=' . urlencode('Invalid email address.'));
+        redirect_to('auth/register.php?error=' . urlencode('Invalid email address.'));
         exit;
     }
 
     if ($password !== $confirm_password) {
-        header('Location: register.php?error=' . urlencode('Passwords do not match.'));
+        redirect_to('auth/register.php?error=' . urlencode('Passwords do not match.'));
         exit;
     }
 
     if (strlen($password) < 6) {
-        header('Location: register.php?error=' . urlencode('Password must be at least 6 characters.'));
+        redirect_to('auth/register.php?error=' . urlencode('Password must be at least 6 characters.'));
         exit;
     }
 
     // Additional validation for coordinators
     if ($role === 'coordinator' && empty($department_id)) {
-        header('Location: register.php?error=' . urlencode('Please select a department for coordinator role.'));
+        redirect_to('auth/register.php?error=' . urlencode('Please select a department for coordinator role.'));
         exit;
     }
 
     // Additional validation for advisers
     if ($role === 'user') {
         if (empty($department_id)) {
-            header('Location: register.php?error=' . urlencode('Please select a department.'));
+            redirect_to('auth/register.php?error=' . urlencode('Please select a department.'));
             exit;
         }
         if (empty($program_id)) {
-            header('Location: register.php?error=' . urlencode('Please select a program.'));
+            redirect_to('auth/register.php?error=' . urlencode('Please select a program.'));
             exit;
         }
         if (empty($section_id)) {
-            header('Location: register.php?error=' . urlencode('Please select a section.'));
+            redirect_to('auth/register.php?error=' . urlencode('Please select a section.'));
             exit;
         }
     }
@@ -85,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->store_result();
     if ($stmt->num_rows === 0) {
         $stmt->close();
-        header('Location: register.php?error=' . urlencode('Invalid department selected.'));
+        redirect_to('auth/register.php?error=' . urlencode('Invalid department selected.'));
         exit;
     }
     $stmt->close();
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->store_result();
         if ($stmt->num_rows === 0) {
             $stmt->close();
-            header('Location: register.php?error=' . urlencode('Invalid program selected.'));
+            redirect_to('auth/register.php?error=' . urlencode('Invalid program selected.'));
             exit;
         }
         $stmt->close();
@@ -111,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->store_result();
         if ($stmt->num_rows === 0) {
             $stmt->close();
-            header('Location: register.php?error=' . urlencode('Invalid section selected.'));
+            redirect_to('auth/register.php?error=' . urlencode('Invalid section selected.'));
             exit;
         }
         $stmt->close();
@@ -124,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->store_result();
     if ($stmt->num_rows > 0) {
         $stmt->close();
-        header('Location: register.php?error=' . urlencode('Username or email already taken.'));
+        redirect_to('auth/register.php?error=' . urlencode('Username or email already taken.'));
         exit;
     }
     $stmt->close();
@@ -162,26 +163,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $conn->commit();
             
-            header('Location: login.php?msg=' . urlencode('Registration successful. Please login.'));
+            redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
             exit;
         } catch (Exception $e) {
             $conn->rollback();
-            header('Location: register.php?error=' . urlencode('Registration failed. Try again.'));
+            redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
             exit;
         }
     }
 
     if ($stmt->execute()) {
         $stmt->close();
-        header('Location: login.php?msg=' . urlencode('Registration successful. Please login.'));
+        redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
         exit;
     } else {
         $stmt->close();
-        header('Location: register.php?error=' . urlencode('Registration failed. Try again.'));
+        redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
         exit;
     }
 } else {
-    header('Location: register.php');
+    redirect_to('auth/register.php');
     exit;
 }
 ?>

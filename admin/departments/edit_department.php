@@ -1,8 +1,8 @@
 <?php
 session_start();
+require_once __DIR__ . '/../../paths.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
-    header('Location: login.php');
-    exit;
+    redirect_to('auth/login.php');
 }
 
 try {
@@ -51,8 +51,7 @@ if (isset($_GET['id'])) {
 }
 
 if (!$department) {
-    header('Location: manage.php');
-    exit;
+    redirect_to('admin/manage.php');
 }
 ?>
 
@@ -117,7 +116,7 @@ if (!$department) {
             </div>
             
             <button type="submit" name="update_department" class="btn btn-primary">Update</button>
-            <a href="manage.php" class="btn btn-secondary">Cancel</a>
+            <a href="<?php echo url_for('admin/manage.php'); ?>" class="btn btn-secondary">Cancel</a>
         </form>
     </div>
 </body>

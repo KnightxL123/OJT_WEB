@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 $host = 'localhost';
 $dbname = 'OJT';
@@ -16,14 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if (empty($username) || empty($password)) {
-        header('Location: login.php?error=' . urlencode('Please enter username and password.'));
+        redirect_to('auth/login.php?error=' . urlencode('Please enter username and password.'));
         exit;
     }
 
     // Prepare statement with department_id included
     $stmt = $conn->prepare('SELECT id, username, password_hash, role, department_id FROM users WHERE username = ? LIMIT 1');
     if (!$stmt) {
-        header('Location: login.php?error=' . urlencode('Database error. Please try again later.'));
+        redirect_to('auth/login.php?error=' . urlencode('Database error. Please try again later.'));
         exit;
     }
     
@@ -45,28 +46,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Redirect based on role
             switch ($role) {
                 case 'admin':
-                    header('Location: admin_panel.php');
+                    redirect_to('admin/admin_panel.php');
                     break;
                 case 'coordinator':
-                    header('Location: coordinator_panel.php');
+                    redirect_to('coordinator/coordinator_panel.php');
                     break;
                 default:
-                    header('Location: user_panel.php');
+                    redirect_to('student/user_panel.php');
             }
             exit;
         } else {
             // Password doesn't match
-            header('Location: login.php?error=' . urlencode('Invalid username or password.'));
+            redirect_to('auth/login.php?error=' . urlencode('Invalid username or password.'));
             exit;
         }
     } else {
         // No matching user
-        header('Location: login.php?error=' . urlencode('Invalid username or password.'));
+        redirect_to('auth/login.php?error=' . urlencode('Invalid username or password.'));
         exit;
     }
 } else {
     // Only POST requests allowed
-    header('Location: login.php');
+    redirect_to('auth/login.php');
     exit;
 }
 ?>
