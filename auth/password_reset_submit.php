@@ -1,11 +1,19 @@
 <?php
 session_start();
-require_once __DIR__ . '/../paths.php';
-require_once __DIR__ . '/../db.php';
+
+$host = 'localhost';
+$dbname = 'OJT';
+$user = 'root';
+$pass = '';
+
+$conn = new mysqli($host, $user, $pass, $dbname);
+if ($conn->connect_error) {
+    die('Connection failed: '.$conn->connect_error);
+}
 
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect_to('auth/password_reset_request.php');
+    header('Location: password_reset_request.php');
     exit;
 }
 
@@ -14,56 +22,63 @@ $password = $_POST['password'] ?? '';
 $confirm_password = $_POST['confirm_password'] ?? '';
 
 if ($token === '' || $password === '' || $confirm_password === '') {
-    redirect_to('auth/password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('All fields are required.'));
+    header('Location: password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('All fields are required.'));
     exit;
 }
 if ($password !== $confirm_password) {
-    redirect_to('auth/password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Passwords do not match.'));
+    header('Location: password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Passwords do not match.'));
     exit;
 }
 if (strlen($password) < 6) {
-    redirect_to('auth/password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Password must be at least 6 characters.'));
+    header('Location: password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Password must be at least 6 characters.'));
     exit;
 }
 
 // Validate token and get user
-try {
-    $stmt = $pdo->prepare('SELECT user_id, expires_at FROM password_resets WHERE token = :token LIMIT 1');
-    $stmt->execute([':token' => $token]);
-    $reset = $stmt->fetch();
+$stmt = $conn->prepare('
+    SELECT user_id, expires_at FROM password_resets WHERE token = ? LIMIT 1');
+$stmt->bind_param('s', $token);
+$stmt->execute();
+$stmt->store_result();
 
-    if (!$reset) {
-        redirect_to('auth/password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
-        exit;
-    }
-    
-    $user_id = $reset['user_id'];
-    $expires_at = $reset['expires_at'];
-
-    if (strtotime($expires_at) < time()) {
-        // Token expired, delete it
-        $del_stmt = $pdo->prepare('DELETE FROM password_resets WHERE token = :token');
-        $del_stmt->execute([':token' => $token]);
-        redirect_to('auth/password_reset_request.php?error=' . urlencode('Token expired. Please request a new reset.'));
-        exit;
-    }
-
-    // Update password hash
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id');
-    $stmt->execute([
-        ':password_hash' => $hashed_password,
-        ':id' => $user_id
-    ]);
-
-    // Delete token after use
-    $del_stmt = $pdo->prepare('DELETE FROM password_resets WHERE token = :token');
-    $del_stmt->execute([':token' => $token]);
-
-    redirect_to('auth/login.php?msg=' . urlencode('Password reset successful. Please login.'));
-    exit;
-} catch (PDOException $e) {
-    redirect_to('auth/password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Failed to reset password.'));
+if ($stmt->num_rows !== 1) {
+    $stmt->close();
+    header('Location: password_reset_request.php?error=' . urlencode('Invalid or expired token.'));
     exit;
 }
+
+$stmt->bind_result($user_id, $expires_at);
+$stmt->fetch();
+
+if (strtotime($expires_at) < time()) {
+    // Token expired, delete it
+    $stmt->close();
+    $del_stmt = $conn->prepare('DELETE FROM password_resets WHERE token = ?');
+    $del_stmt->bind_param('s', $token);
+    $del_stmt->execute();
+    $del_stmt->close();
+    header('Location: password_reset_request.php?error=' . urlencode('Token expired. Please request a new reset.'));
+    exit;
+}
+$stmt->close();
+
+// Update password hash
+$hashed_password = password_hash($password, PASSWORD_DEFAULT);
+$stmt = $conn->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+$stmt->bind_param('si', $hashed_password, $user_id);
+if (!$stmt->execute()) {
+    $stmt->close();
+    header('Location: password_reset.php?token=' . urlencode($token) . '&error=' . urlencode('Failed to reset password.'));
+    exit;
+}
+$stmt->close();
+
+// Delete token after use
+$del_stmt = $conn->prepare('DELETE FROM password_resets WHERE token = ?');
+$del_stmt->bind_param('s', $token);
+$del_stmt->execute();
+$del_stmt->close();
+
+header('Location: login.php?msg=' . urlencode('Password reset successful. Please login.'));
+exit;
 ?>

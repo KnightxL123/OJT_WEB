@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
-require_once __DIR__ . '/../db.php';
 
 // Redirect logged in users
 if (isset($_SESSION['user_id'])) {
@@ -21,58 +20,59 @@ if (isset($_SESSION['user_id'])) {
 $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Use centralized database configuration
+    require_once __DIR__ . '/../config/DBconfig.php';
+    
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
     
-    try {
-        // Fetch user by username
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, department_id FROM users WHERE username = :username");
-        $stmt->execute([':username' => $username]);
-        $user = $stmt->fetch();
+    $stmt = $conn->prepare("SELECT id, username, password_hash, role, department_id FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+    
+    if ($user) {
         
-        if ($user) {
-            if (password_verify($password, $user['password_hash'])) {
-                // For coordinators, check if their department is active
-                if ($user['role'] === 'coordinator' && !empty($user['department_id'])) {
-                    $stmt2 = $pdo->prepare("SELECT status FROM departments WHERE id = :id");
-                    $stmt2->execute([':id' => $user['department_id']]);
-                    $dept = $stmt2->fetch();
-                    
-                    if ($dept) {
-                        if ($dept['status'] === 'inactive') {
-                            $error = "Login failed: Your department has been deactivated. Please contact administrator.";
-                        } else {
-                            // Department is active, proceed with login
-                            $_SESSION['user_id'] = $user['id'];
-                            $_SESSION['username'] = $user['username'];
-                            $_SESSION['role'] = $user['role'];
-                            $_SESSION['department_id'] = $user['department_id'];
-                            
-                            redirect_to('coordinator/coordinator_panel.php');
-                        }
+        if (password_verify($password, $user['password_hash'])) {
+            // For coordinators, check if their department is active
+            if ($user['role'] === 'coordinator') {
+                $dept_id = $user['department_id'];
+                
+                $stmt2 = $conn->prepare("SELECT status FROM departments WHERE id = ?");
+                $stmt2->execute([$dept_id]);
+                $dept = $stmt2->fetch();
+                
+                if ($dept) {
+                    if ($dept['status'] === 'inactive') {
+                        $error = "Login failed: Your department has been deactivated. Please contact administrator.";
                     } else {
-                        $error = "Login failed: Department not found.";
+                        // Department is active, proceed with login
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['username'] = $user['username'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['department_id'] = $user['department_id'];
+                        
+                        redirect_to('coordinator/coordinator_panel.php');
                     }
                 } else {
-                    // For admin and regular users, proceed normally
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['role'] = $user['role'];
-                    
-                    if ($user['role'] === 'admin') {
-                        redirect_to('admin/admin_panel.php');
-                    } else {
-                        redirect_to('student/user_panel.php');
-                    }
+                    $error = "Login failed: Department not found.";
                 }
             } else {
-                $error = "Invalid password.";
+                // For admin and regular users, proceed normally
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                
+                if ($user['role'] === 'admin') {
+                    redirect_to('admin/admin_panel.php');
+                } else {
+                    redirect_to('student/user_panel.php');
+                }
             }
         } else {
-            $error = "User not found.";
+            $error = "Invalid password.";
         }
-    } catch (PDOException $e) {
-        $error = "Database error: " . $e->getMessage();
+    } else {
+        $error = "User not found.";
     }
 }
 ?>

@@ -1,7 +1,16 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
-require_once __DIR__ . '/../db.php';
+
+$host = 'localhost';
+$dbname = 'OJT';
+$user = 'root';
+$pass = '';
+
+$conn = new mysqli($host, $user, $pass, $dbname);
+if ($conn->connect_error) {
+    die('Connection failed: '.$conn->connect_error);
+}
 
 function is_valid_email($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL);
@@ -71,113 +80,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Check if department exists
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM departments WHERE id = :id AND status = 'active' AND deleted_at IS NULL");
-        $stmt->execute([':id' => $department_id]);
-        if (!$stmt->fetch()) {
-            redirect_to('auth/register.php?error=' . urlencode('Invalid department selected.'));
-            exit;
-        }
-    } catch (PDOException $e) {
-        redirect_to('auth/register.php?error=' . urlencode('Database error.'));
+    $stmt = $conn->prepare("SELECT id FROM departments WHERE id = ? AND status = 'active' AND deleted_at IS NULL");
+    $stmt->bind_param('i', $department_id);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows === 0) {
+        $stmt->close();
+        redirect_to('auth/register.php?error=' . urlencode('Invalid department selected.'));
         exit;
     }
+    $stmt->close();
 
     // For advisers, check program and section
     if ($role === 'user') {
         // Check program exists and belongs to department
-        try {
-            $stmt = $pdo->prepare("SELECT id FROM programs WHERE id = :prog_id AND department_id = :dept_id AND status = 'active'");
-            $stmt->execute([':prog_id' => $program_id, ':dept_id' => $department_id]);
-            if (!$stmt->fetch()) {
-                redirect_to('auth/register.php?error=' . urlencode('Invalid program selected.'));
-                exit;
-            }
-            
-            // Check section exists and belongs to program
-            $stmt = $pdo->prepare("SELECT id FROM sections WHERE id = :sect_id AND program_id = :prog_id");
-            $stmt->execute([':sect_id' => $section_id, ':prog_id' => $program_id]);
-            if (!$stmt->fetch()) {
-                redirect_to('auth/register.php?error=' . urlencode('Invalid section selected.'));
-                exit;
-            }
-        } catch (PDOException $e) {
-            redirect_to('auth/register.php?error=' . urlencode('Database error.'));
+        $stmt = $conn->prepare("SELECT id FROM programs WHERE id = ? AND department_id = ? AND status = 'active'");
+        $stmt->bind_param('ii', $program_id, $department_id);
+        $stmt->execute();
+        $stmt->store_result();
+        if ($stmt->num_rows === 0) {
+            $stmt->close();
+            redirect_to('auth/register.php?error=' . urlencode('Invalid program selected.'));
             exit;
         }
+        $stmt->close();
+        
+        // Check section exists and belongs to program
+        $stmt = $conn->prepare("SELECT id FROM sections WHERE id = ? AND program_id = ?");
+        $stmt->bind_param('ii', $section_id, $program_id);
+        $stmt->execute();
+        $stmt->store_result();
+        if ($stmt->num_rows === 0) {
+            $stmt->close();
+            redirect_to('auth/register.php?error=' . urlencode('Invalid section selected.'));
+            exit;
+        }
+        $stmt->close();
     }
 
     // Check username or email exists
-    try {
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE username = :username OR email = :email');
-        $stmt->execute([':username' => $username, ':email' => $email]);
-        if ($stmt->fetch()) {
-            redirect_to('auth/register.php?error=' . urlencode('Username or email already taken.'));
-            exit;
-        }
-    } catch (PDOException $e) {
-        redirect_to('auth/register.php?error=' . urlencode('Database error.'));
+    $stmt = $conn->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+    $stmt->bind_param('ss', $username, $email);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows > 0) {
+        $stmt->close();
+        redirect_to('auth/register.php?error=' . urlencode('Username or email already taken.'));
         exit;
     }
+    $stmt->close();
 
     // Hash password and insert new user
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
     
-    try {
-        if ($role === 'coordinator') {
-            $stmt = $pdo->prepare('INSERT INTO users (username, email, password_hash, role, department_id) VALUES (:username, :email, :password_hash, :role, :department_id)');
-            $stmt->execute([
-                ':username' => $username,
-                ':email' => $email,
-                ':password_hash' => $password_hash,
-                ':role' => $role,
-                ':department_id' => $department_id
-            ]);
+    if ($role === 'coordinator') {
+        $stmt = $conn->prepare('INSERT INTO users (username, email, password_hash, role, department_id) VALUES (?, ?, ?, ?, ?)');
+        $stmt->bind_param('ssssi', $username, $email, $password_hash, $role, $department_id);
+    } else {
+        // For advisers, we'll store the section_id in a separate table
+        $conn->begin_transaction();
+        
+        try {
+            // Insert user
+            $stmt = $conn->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)');
+            $stmt->bind_param('ssss', $username, $email, $password_hash, $role);
+            $stmt->execute();
+            $user_id = $conn->insert_id;
+            $stmt->close();
+            
+            // Insert adviser
+            $stmt = $conn->prepare('INSERT INTO advisers (name, email, department_id) VALUES (?, ?, ?)');
+            $stmt->bind_param('ssi', $username, $email, $department_id);
+            $stmt->execute();
+            $adviser_id = $conn->insert_id;
+            $stmt->close();
+            
+            // Link adviser to section
+            $stmt = $conn->prepare('INSERT INTO section_adviser (section_id, adviser_id) VALUES (?, ?)');
+            $stmt->bind_param('ii', $section_id, $adviser_id);
+            $stmt->execute();
+            $stmt->close();
+            
+            $conn->commit();
             
             redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
             exit;
-        } else {
-            // For advisers, we'll store the section_id in a separate table
-            $pdo->beginTransaction();
-            
-            try {
-                // Insert user
-                $stmt = $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (:username, :email, :password_hash, :role)');
-                $stmt->execute([
-                    ':username' => $username,
-                    ':email' => $email,
-                    ':password_hash' => $password_hash,
-                    ':role' => $role
-                ]);
-                $user_id = $pdo->lastInsertId();
-                
-                // Insert adviser
-                $stmt = $pdo->prepare('INSERT INTO advisers (name, email, department_id) VALUES (:name, :email, :department_id)');
-                $stmt->execute([
-                    ':name' => $username,
-                    ':email' => $email,
-                    ':department_id' => $department_id
-                ]);
-                $adviser_id = $pdo->lastInsertId();
-                
-                // Link adviser to section
-                $stmt = $pdo->prepare('INSERT INTO section_adviser (section_id, adviser_id) VALUES (:section_id, :adviser_id)');
-                $stmt->execute([
-                    ':section_id' => $section_id,
-                    ':adviser_id' => $adviser_id
-                ]);
-                
-                $pdo->commit();
-                
-                redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
-                exit;
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
-                exit;
-            }
+        } catch (Exception $e) {
+            $conn->rollback();
+            redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
+            exit;
         }
-    } catch (PDOException $e) {
+    }
+
+    if ($stmt->execute()) {
+        $stmt->close();
+        redirect_to('auth/login.php?msg=' . urlencode('Registration successful. Please login.'));
+        exit;
+    } else {
+        $stmt->close();
         redirect_to('auth/register.php?error=' . urlencode('Registration failed. Try again.'));
         exit;
     }
