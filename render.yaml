@@ -4,6 +4,7 @@ services:
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
+
     envVars:
       - key: DB_HOST
         value: dpg-d4fnncvpmn1nc73f3k1rg-a.singapore-postgres.render.com
