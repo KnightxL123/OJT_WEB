@@ -1,44 +1,41 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../db.php';
+
 if (isset($_SESSION['username'])) {
-    if ($_SESSION['role'] === 'admin') {
-        header('Location: admin_panel.php');
-    } else {
-        header('Location: user_panel.php');
-    }
-    exit;
+	if ($_SESSION['role'] === 'admin') {
+		redirect_to('admin/admin_panel.php');
+	} else {
+		redirect_to('student/user_panel.php');
+	}
+	exit;
 }
 
-// Database connection
-$host = 'localhost';
-$dbname = 'OJT';
-$user = 'root';
-$pass = '';
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die('Connection failed: '.$conn->connect_error);
-}
-
-// Fetch departments for selection
+// Fetch departments, programs and sections using shared PDO connection
 $departments = [];
-$result = $conn->query("SELECT id, name FROM departments WHERE status = 'active' AND deleted_at IS NULL");
-if ($result) {
-    $departments = $result->fetch_all(MYSQLI_ASSOC);
-}
-
-// Fetch all programs for JavaScript
 $programs = [];
-$result = $conn->query("SELECT id, name, department_id FROM programs WHERE status = 'active'");
-if ($result) {
-    $programs = $result->fetch_all(MYSQLI_ASSOC);
+$sections = [];
+
+try {
+	$stmt = $pdo->query("SELECT id, name FROM departments WHERE status = 'active' AND deleted_at IS NULL");
+	$departments = $stmt->fetchAll();
+} catch (PDOException $e) {
+	$departments = [];
 }
 
-// Fetch all sections for JavaScript
-$sections = [];
-$result = $conn->query("SELECT id, name, department_id, program_id FROM sections");
-if ($result) {
-    $sections = $result->fetch_all(MYSQLI_ASSOC);
+try {
+	$stmt = $pdo->query("SELECT id, name, department_id FROM programs WHERE status = 'active'");
+	$programs = $stmt->fetchAll();
+} catch (PDOException $e) {
+	$programs = [];
+}
+
+try {
+	$stmt = $pdo->query("SELECT id, name, department_id, program_id FROM sections");
+	$sections = $stmt->fetchAll();
+} catch (PDOException $e) {
+	$sections = [];
 }
 ?>
 <!DOCTYPE html>
@@ -130,7 +127,7 @@ if ($result) {
 <body>
   <div class="container">
     <div class="register-box">
-      <img src="/ojt-management-system/backend/assets/images/plsplogo.jpg" alt="logo" class="logo">
+      <img src="<?php echo url_for('assets/images/plsplogo.jpg'); ?>" alt="logo" class="logo">
       <h2>User Registration</h2>
       <?php
       if (isset($_GET['error'])) {

@@ -1,21 +1,16 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../db.php';
 
 $host = 'localhost';
 $dbname = 'OJT';
 $user = 'root';
 $pass = '';
 
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die('Connection failed: '.$conn->connect_error);
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect_to('auth/password_reset_request.php');
 }
-
 
 $email = trim($_POST['email'] ?? '');
 
@@ -29,33 +24,47 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 // Check if email exists
-$stmt = $conn->prepare('SELECT id, username FROM users WHERE email = ? LIMIT 1');
-$stmt->bind_param('s', $email);
-$stmt->execute();
-$stmt->store_result();
+$stmt = $pdo->prepare('SELECT id, username FROM users WHERE email = :email LIMIT 1');
+$stmt->execute([':email' => $email]);
+$user = $stmt->fetch();
 
-if ($stmt->num_rows !== 1) {
-    $stmt->close();
+if (!$user) {
     // To avoid email enumeration, show generic message
     redirect_to('auth/password_reset_request.php?msg=' . urlencode('If the email exists, a reset link has been sent.'));
 }
 
-$stmt->bind_result($user_id, $username);
-$stmt->fetch();
-$stmt->close();
+$user_id = $user['id'];
+$username = $user['username'];
 
 // Generate secure token
 $token = bin2hex(random_bytes(32));
 $expires_at = date('Y-m-d H:i:s', time() + 3600); // expire in 1 hour
 
-// Insert or update token for user
-$stmt = $conn->prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)');
-$stmt->bind_param('iss', $user_id, $token, $expires_at);
-if (!$stmt->execute()) {
-    $stmt->close();
+// Insert or update token for user (portable upsert)
+try {
+    // Check if a reset row already exists for this user
+    $stmt = $pdo->prepare('SELECT id FROM password_resets WHERE user_id = :user_id');
+    $stmt->execute([':user_id' => $user_id]);
+    $existing = $stmt->fetch();
+
+    if ($existing) {
+        $stmt = $pdo->prepare('UPDATE password_resets SET token = :token, expires_at = :expires_at WHERE user_id = :user_id');
+        $stmt->execute([
+            ':token' => $token,
+            ':expires_at' => $expires_at,
+            ':user_id' => $user_id,
+        ]);
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (:user_id, :token, :expires_at)');
+        $stmt->execute([
+            ':user_id' => $user_id,
+            ':token' => $token,
+            ':expires_at' => $expires_at,
+        ]);
+    }
+} catch (PDOException $e) {
     redirect_to('auth/password_reset_request.php?error=' . urlencode('Failed to create reset token.'));
 }
-$stmt->close();
 
 // Send reset email
 $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
