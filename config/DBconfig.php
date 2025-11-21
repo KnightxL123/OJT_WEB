@@ -1,6 +1,9 @@
 <?php
 // Detect environment: Render uses environment variables, local doesn't
-$isProduction = getenv('DATABASE_URL') !== false || getenv('RENDER') !== false;
+// Check for actual Render-specific environment variables
+$isProduction = (getenv('DATABASE_URL') !== false && getenv('DATABASE_URL') !== '') 
+             || (getenv('RENDER') !== false && getenv('RENDER') !== '') 
+             || (getenv('RENDER_SERVICE_NAME') !== false && getenv('RENDER_SERVICE_NAME') !== '');
 
 if ($isProduction) {
     // Production: PostgreSQL on Render
@@ -41,6 +44,12 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    $env_type = $isProduction ? 'Production (Render)' : 'Local (XAMPP)';
+    $available_drivers = implode(', ', PDO::getAvailableDrivers());
+    die("Database connection failed!<br>
+         Environment: $env_type<br>
+         Trying driver: $db_driver<br>
+         Available drivers: $available_drivers<br>
+         Error: " . $e->getMessage());
 }
 ?>
