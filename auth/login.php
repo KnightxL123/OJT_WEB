@@ -98,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <link rel="stylesheet" href="/ojt-management-system/backend/assets/css/auth/login.css">
+    <link rel="stylesheet" href="<?php echo url_for('assets/css/auth/login.css'); ?>">
     <title>OJT Management System - Login</title>
     <style>
         .message {
@@ -122,7 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <body>
     <div class="container">
         <div class="login-box">
-            <img src="/ojt-management-system/backend/assets/images/plsplogo.jpg" alt="logo" class="logo">
+            <img src="<?php echo url_for('assets/images/plsplogo.jpg'); ?>" alt="logo" class="logo">
             <h2>Login</h2>
             <?php
             // Display error from form processing

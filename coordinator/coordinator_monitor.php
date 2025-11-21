@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'coordinator') {
     header('Location: ../../auth/login.php');
@@ -112,7 +113,7 @@ try {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title><?php echo htmlspecialchars($department_name); ?> Monitoring</title>
-            <link rel="stylesheet" href="../../assets/css/dash.css">
+            <link rel="stylesheet" href="<?php echo url_for('assets/css/dash.css'); ?>">
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
             <style>
@@ -132,7 +133,7 @@ try {
         </head>
         <body>
         <header class="header">
-            <img src="../../assets/images/PLSP.png" alt="Logo" class="header-logo">
+            <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo">
             <div class="header-title">
                 <h2><?php echo htmlspecialchars($department_name); ?> Department</h2>
                 <p>Monitoring</p>
@@ -260,7 +261,7 @@ try {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title><?php echo htmlspecialchars($department_name); ?> Monitoring</title>
-            <link rel="stylesheet" href="../../assets/css/dash.css">
+            <link rel="stylesheet" href="<?php echo url_for('assets/css/dash.css'); ?>">
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
             <style>
@@ -277,7 +278,7 @@ try {
         </head>
         <body>
         <header class="header">
-            <img src="../../assets/images/PLSP.png" alt="Logo" class="header-logo">
+            <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo">
             <div class="header-title">
                 <h2><?php echo htmlspecialchars($department_name); ?> Department</h2>
                 <p>Monitoring</p>

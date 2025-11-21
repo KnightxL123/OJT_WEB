@@ -93,7 +93,7 @@ function sanitize($str) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="/ojt-management-system/backend/assets/css/admin/dash.css" />
+    <link rel="stylesheet" href="<?php echo url_for('assets/css/admin/dash.css'); ?>" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -135,7 +135,7 @@ function sanitize($str) {
 <body>
 
 <header class="header">
-    <img src="/ojt-management-system/backend/assets/images/PLSP.png" alt="Logo" class="header-logo" />
+    <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo" />
     <div class="search-bar">
         <input type="text" placeholder="Search..." />
     </div>

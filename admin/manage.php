@@ -338,7 +338,7 @@ try {
 <body>
 
 <header class="header">
-    <img src="/ojt-management-system/backend/assets/images/PLSP.png" alt="Logo" class="header-logo">
+    <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo">
     <div class="search-bar">
         <input type="text" placeholder="Search...">
     </div>

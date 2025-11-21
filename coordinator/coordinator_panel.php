@@ -421,7 +421,7 @@ function sanitize($str) {
 </head>
 <body>
 <header class="header">
-    <img src="../image/PLSP.png" alt="Logo" class="header-logo">
+    <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo">
     <div class="header-title">
         <h2><?php echo sanitize($department_name); ?> Department</h2>
         <p>Coordinator Dashboard</p>

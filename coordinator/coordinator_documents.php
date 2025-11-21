@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: ../../auth/login.php?error=' . urlencode("Please log in to access the documents."));
@@ -126,7 +127,7 @@ try {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Documents - <?php echo htmlspecialchars($department_name); ?></title>
-            <link rel="stylesheet" href="../../assets/css/dash.css" />
+            <link rel="stylesheet" href="<?php echo url_for('assets/css/dash.css'); ?>" />
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" />
             <style>
@@ -142,7 +143,7 @@ try {
         </head>
         <body>
         <header class="header">
-            <img src="../../assets/images/PLSP.png" alt="Logo" class="header-logo" />
+            <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo" />
             <div class="header-title">
                 <h2><?php echo htmlspecialchars($department_name); ?> Department</h2>
                 <p>Coordinator Documents</p>
@@ -266,7 +267,7 @@ try {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Documents - <?php echo htmlspecialchars($program_name); ?></title>
-            <link rel="stylesheet" href="../../assets/css/dash.css" />
+            <link rel="stylesheet" href="<?php echo url_for('assets/css/dash.css'); ?>" />
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" />
             <style>
@@ -282,7 +283,7 @@ try {
         </head>
         <body>
         <header class="header">
-            <img src="../../assets/images/PLSP.png" alt="Logo" class="header-logo" />
+            <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo" />
             <div class="header-title">
                 <h2><?php echo htmlspecialchars($department_name); ?> Department</h2>
                 <p>Coordinator Documents</p>
@@ -419,7 +420,7 @@ try {
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Documents - <?php echo htmlspecialchars($section_info['section_name']); ?></title>
-            <link rel="stylesheet" href="../../assets/css/dash.css" />
+            <link rel="stylesheet" href="<?php echo url_for('assets/css/dash.css'); ?>" />
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" />
             <style>
@@ -439,7 +440,7 @@ try {
         </head>
         <body>
         <header class="header">
-            <img src="../../assets/images/PLSP.png" alt="Logo" class="header-logo" />
+            <img src="<?php echo url_for('assets/images/PLSP.png'); ?>" alt="Logo" class="header-logo" />
             <div class="header-title">
                 <h2><?php echo htmlspecialchars($department_name); ?> Department</h2>
                 <p>Coordinator Documents</p>
