@@ -143,7 +143,7 @@ function sanitize($str) {
     <nav class="sidebar">
     <ul>
         <li><a href="<?php echo url_for('admin/admin_panel.php'); ?>" class="active"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li><a href="<?php echo url_for('documents/documents.php'); ?>"><i class="bi bi-folder"></i> Documents</a></li>
+        <li><a href="../documents/documents.php"><i class="bi bi-folder"></i> Documents</a></li>
         <li><a href="<?php echo url_for('admin/monitoring.php'); ?>"><i class="bi bi-clipboard-data"></i> Monitoring</a></li>
         <li><a href="<?php echo url_for('partnership/partnership.php'); ?>"><i class="bi bi-handshake"></i> Partnership</a></li>
         <li><a href="<?php echo url_for('admin/manage.php'); ?>"><i class="bi bi-diagram-3"></i> Departments</a></li>
