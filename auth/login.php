@@ -2,19 +2,21 @@
 session_start();
 require_once __DIR__ . '/../paths.php';
 
-// Redirect logged in users
+// Redirect logged in users (only allow admin and coordinator)
 if (isset($_SESSION['user_id'])) {
-    switch ($_SESSION['role']) {
-        case 'admin':
-            redirect_to('admin/admin_panel.php');
-            break;
-        case 'coordinator':
-            redirect_to('coordinator/coordinator_panel.php');
-            break;
-        default:
-            redirect_to('student/user_panel.php');
+    if ($_SESSION['role'] === 'admin') {
+        redirect_to('admin/admin_panel.php');
+        exit;
+    } elseif ($_SESSION['role'] === 'coordinator') {
+        redirect_to('coordinator/coordinator_panel.php');
+        exit;
+    } else {
+        // Logged in with an unsupported role; clear session and show error on login page
+        session_unset();
+        session_destroy();
+        header('Location: login.php?error=' . urlencode('Only coordinators and admins can log in here.'));
+        exit;
     }
-    exit;
 }
 
 $error = '';
@@ -56,17 +58,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 } else {
                     $error = "Login failed: Department not found.";
                 }
-            } else {
-                // For admin and regular users, proceed normally
+            } elseif ($user['role'] === 'admin') {
+                // Admin: proceed normally
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
                 
-                if ($user['role'] === 'admin') {
-                    redirect_to('admin/admin_panel.php');
-                } else {
-                    redirect_to('student/user_panel.php');
-                }
+                redirect_to('admin/admin_panel.php');
+            } else {
+                // Any other role is not allowed to log in here
+                $error = "Login failed: Only coordinators and admins can log in.";
             }
         } else {
             $error = "Invalid password.";

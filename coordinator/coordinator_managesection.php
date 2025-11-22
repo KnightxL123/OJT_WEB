@@ -21,31 +21,19 @@ $department_name = '';
 
 if ($coordinator_id) {
     $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = ?");
-    if (!$stmt) {
-        die("Prepare failed: " . $conn->error);
-    }
-    $stmt->bind_param("i", $coordinator_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
+    $stmt->execute([$coordinator_id]);
+    $row = $stmt->fetch();
+    if ($row) {
         $department_id = $row['department_id'];
     }
-    $stmt->close();
 
     if ($department_id) {
         $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-        if (!$stmt) {
-            die("Prepare failed: " . $conn->error);
-        }
-        $stmt->bind_param("i", $department_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
+        $stmt->execute([$department_id]);
+        $row = $stmt->fetch();
+        if ($row) {
             $department_name = $row['name'];
         }
-        $stmt->close();
     }
 }
 
@@ -73,21 +61,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']) && $_FI
             }
             
             // Start transaction
-            $conn->begin_transaction();
+            $conn->beginTransaction();
             
             // Create section
             $stmt = $conn->prepare("INSERT INTO sections (name, department_id, program_id) VALUES (?, ?, ?)");
             if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
+                throw new Exception("Failed to prepare section insert statement.");
             }
-            $stmt->bind_param("sii", $section_name, $department_id, $program_id);
-            
-            if (!$stmt->execute()) {
-                throw new Exception("Failed to create section: " . $stmt->error);
+            if (!$stmt->execute([$section_name, $department_id, $program_id])) {
+                throw new Exception("Failed to create section.");
             }
             
-            $section_id = $conn->insert_id;
-            $stmt->close();
+            $section_id = (int)$conn->lastInsertId();
             
             // Parse CSV file
             $handle = fopen($file, 'r');
@@ -97,12 +82,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']) && $_FI
             
             // Skip header row
             $header = fgetcsv($handle);
-            
-            $imported_count = 0;
+
+            // Prepare student insert, check, and update statements
             $student_stmt = $conn->prepare("INSERT INTO students (student_id, name, section_id, gender, email) VALUES (?, ?, ?, ?, ?)");
             if (!$student_stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
+                throw new Exception("Failed to prepare student insert statement.");
             }
+
+            $check_stmt = $conn->prepare("SELECT id, student_id, name, section_id, gender, email FROM students WHERE student_id = ? AND section_id = ? LIMIT 1");
+            if (!$check_stmt) {
+                throw new Exception("Failed to prepare student lookup statement.");
+            }
+
+            $update_stmt = $conn->prepare("UPDATE students SET name = ?, gender = ?, email = ? WHERE id = ?");
+            if (!$update_stmt) {
+                throw new Exception("Failed to prepare student update statement.");
+            }
+            
+            $imported_count = 0;
+            $updated_count = 0;
+            $duplicate_count = 0;
             
             while (($row = fgetcsv($handle)) !== FALSE) {
                 if (count($row) >= 4) {
@@ -115,21 +114,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']) && $_FI
                     if (!empty($student_id) && !empty($name)) {
                         // Validate gender
                         $gender = in_array(strtolower($gender), ['male', 'female']) ? ucfirst(strtolower($gender)) : 'Male';
-                        
-                        $student_stmt->bind_param("ssiss", $student_id, $name, $section_id, $gender, $email);
-                        if ($student_stmt->execute()) {
-                            $imported_count++;
+
+                        // Check if student already exists in this section
+                        $check_stmt->execute([$student_id, $section_id]);
+                        $existing = $check_stmt->fetch();
+
+                        if ($existing) {
+                            // Use existing values when uploaded cells are empty
+                            $new_name = $name !== '' ? $name : $existing['name'];
+                            $new_gender = $gender !== '' ? $gender : $existing['gender'];
+                            $new_email = $email !== '' ? $email : $existing['email'];
+
+                            // If everything is the same, count as duplicate and skip
+                            if (
+                                $existing['name'] === $new_name &&
+                                $existing['gender'] === $new_gender &&
+                                $existing['email'] === $new_email
+                            ) {
+                                $duplicate_count++;
+                                continue;
+                            }
+
+                            // Otherwise, update existing record
+                            if ($update_stmt->execute([$new_name, $new_gender, $new_email, $existing['id']])) {
+                                $updated_count++;
+                            }
+                        } else {
+                            // Insert new student
+                            if ($student_stmt->execute([$student_id, $name, $section_id, $gender, $email])) {
+                                $imported_count++;
+                            }
                         }
                     }
                 }
             }
             
             fclose($handle);
-            $student_stmt->close();
             $conn->commit();
             
             $import_success = true;
-            $import_message = "Successfully created section '$section_name' and imported $imported_count students from CSV file";
+            $import_message = "Successfully created section '$section_name'. Inserted: $imported_count, Updated: $updated_count, Skipped duplicates: $duplicate_count from CSV file";
             
         } else {
             // Use PhpSpreadsheet for Excel files
@@ -151,25 +175,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']) && $_FI
             array_shift($rows);
             
             // Start transaction
-            $conn->begin_transaction();
+            $conn->beginTransaction();
             
             // Create section
             $stmt = $conn->prepare("INSERT INTO sections (name, department_id, program_id) VALUES (?, ?, ?)");
             if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
+                throw new Exception("Failed to prepare section insert statement.");
             }
-            $stmt->bind_param("sii", $section_name, $department_id, $program_id);
-            $stmt->execute();
-            $section_id = $conn->insert_id;
-            $stmt->close();
+            if (!$stmt->execute([$section_name, $department_id, $program_id])) {
+                throw new Exception("Failed to create section.");
+            }
+            $section_id = (int)$conn->lastInsertId();
             
-            // Prepare student insert statement
-            $stmt = $conn->prepare("INSERT INTO students (student_id, name, section_id, gender, email) VALUES (?, ?, ?, ?, ?)");
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
+            // Prepare student insert, check, and update statements
+            $student_stmt = $conn->prepare("INSERT INTO students (student_id, name, section_id, gender, email) VALUES (?, ?, ?, ?, ?)");
+            if (!$student_stmt) {
+                throw new Exception("Failed to prepare student insert statement.");
+            }
+
+            $check_stmt = $conn->prepare("SELECT id, student_id, name, section_id, gender, email FROM students WHERE student_id = ? AND section_id = ? LIMIT 1");
+            if (!$check_stmt) {
+                throw new Exception("Failed to prepare student lookup statement.");
+            }
+
+            $update_stmt = $conn->prepare("UPDATE students SET name = ?, gender = ?, email = ? WHERE id = ?");
+            if (!$update_stmt) {
+                throw new Exception("Failed to prepare student update statement.");
             }
             
             $imported_count = 0;
+            $updated_count = 0;
+            $duplicate_count = 0;
+
             foreach ($rows as $row) {
                 if (count($row) >= 4) {
                     $student_id = trim($row[0] ?? '');
@@ -181,25 +218,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']) && $_FI
                     if (!empty($student_id) && !empty($name)) {
                         // Validate gender
                         $gender = in_array(strtolower($gender), ['male', 'female']) ? ucfirst(strtolower($gender)) : 'Male';
-                        
-                        $stmt->bind_param("ssiss", $student_id, $name, $section_id, $gender, $email);
-                        if ($stmt->execute()) {
-                            $imported_count++;
+
+                        // Check if student already exists in this section
+                        $check_stmt->execute([$student_id, $section_id]);
+                        $existing = $check_stmt->fetch();
+
+                        if ($existing) {
+                            // Use existing values when uploaded cells are empty
+                            $new_name = $name !== '' ? $name : $existing['name'];
+                            $new_gender = $gender !== '' ? $gender : $existing['gender'];
+                            $new_email = $email !== '' ? $email : $existing['email'];
+
+                            // If everything is the same, count as duplicate and skip
+                            if (
+                                $existing['name'] === $new_name &&
+                                $existing['gender'] === $new_gender &&
+                                $existing['email'] === $new_email
+                            ) {
+                                $duplicate_count++;
+                                continue;
+                            }
+
+                            // Otherwise, update existing record
+                            if ($update_stmt->execute([$new_name, $new_gender, $new_email, $existing['id']])) {
+                                $updated_count++;
+                            }
+                        } else {
+                            // Insert new student
+                            if ($student_stmt->execute([$student_id, $name, $section_id, $gender, $email])) {
+                                $imported_count++;
+                            }
                         }
                     }
                 }
             }
             
-            $stmt->close();
             $conn->commit();
             
             $import_success = true;
-            $import_message = "Successfully created section '$section_name' and imported $imported_count students from Excel file";
+            $import_message = "Successfully created section '$section_name'. Inserted: $imported_count, Updated: $updated_count, Skipped duplicates: $duplicate_count from Excel file";
+            
         }
         
     } catch (Exception $e) {
         if (isset($conn) && $conn) {
-            $conn->rollback();
+            $conn->rollBack();
         }
         $import_success = false;
         $import_message = "Error importing file: " . $e->getMessage();
@@ -229,15 +292,8 @@ if (isset($_GET['download_template'])) {
 // Get programs in the coordinator's department
 $programs = [];
 $stmt = $conn->prepare("SELECT id, name FROM programs WHERE department_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $department_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $programs[] = $row;
-    }
-    $stmt->close();
-}
+$stmt->execute([$department_id]);
+$programs = $stmt->fetchAll();
 
 // Get existing sections
 $sections = [];
@@ -250,15 +306,8 @@ $stmt = $conn->prepare("
     GROUP BY s.id, s.name, p.name
     ORDER BY s.name
 ");
-if ($stmt) {
-    $stmt->bind_param("i", $department_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $sections[] = $row;
-    }
-    $stmt->close();
-}
+$stmt->execute([$department_id]);
+$sections = $stmt->fetchAll();
 
 function sanitize($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');

@@ -18,14 +18,11 @@ $department_id = null;
 
 if ($coordinator_id) {
     $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = ?");
-    $stmt->bind_param("i", $coordinator_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
+    $stmt->execute([$coordinator_id]);
+    $row = $stmt->fetch();
+    if ($row) {
         $department_id = $row['department_id'];
     }
-    $stmt->close();
 }
 
 if (!$department_id) {
@@ -34,32 +31,25 @@ if (!$department_id) {
 
 // Check if department is active
 $stmt = $conn->prepare("SELECT status FROM departments WHERE id = ?");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows > 0) {
-    $dept_status = $result->fetch_assoc()['status'];
-    
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) {
+    $dept_status = $row['status'];
     if ($dept_status === 'inactive') {
         // Department has been deactivated since login
         session_destroy();
         redirect_to('auth/login.php?error=' . urlencode("Your department has been deactivated. Please contact administrator."));
     }
 }
-$stmt->close();
 
 // Get department name
 $department_name = '';
 $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) {
     $department_name = $row['name'];
 }
-$stmt->close();
 
 // Initialize all data variables
 $totalStudents = 0;
@@ -80,11 +70,9 @@ $stmt = $conn->prepare("
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ?
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) $totalStudents = $result->fetch_assoc()['total'] ?? 0;
-$stmt->close();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) $totalStudents = $row['total'] ?? 0;
 
 // Get male students count
 $stmt = $conn->prepare("
@@ -93,11 +81,9 @@ $stmt = $conn->prepare("
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ? AND s.gender = 'Male'
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) $maleStudents = $result->fetch_assoc()['male'] ?? 0;
-$stmt->close();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) $maleStudents = $row['male'] ?? 0;
 
 // Get female students count
 $stmt = $conn->prepare("
@@ -106,11 +92,9 @@ $stmt = $conn->prepare("
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ? AND s.gender = 'Female'
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) $femaleStudents = $result->fetch_assoc()['female'] ?? 0;
-$stmt->close();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) $femaleStudents = $row['female'] ?? 0;
 
 // Get program statistics
 $stmt = $conn->prepare("
@@ -124,20 +108,16 @@ $stmt = $conn->prepare("
     WHERE p.department_id = ?
     GROUP BY p.id, p.name
 ");
-$stmt->bind_param("ii", $department_id, $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $programStats[] = [
-            'name' => $row['name'],
-            'total' => (int)$row['total_students'],
-            'male' => (int)$row['male'],
-            'female' => (int)$row['female']
-        ];
-    }
+$stmt->execute([$department_id, $department_id]);
+$rows = $stmt->fetchAll();
+foreach ($rows as $row) {
+    $programStats[] = [
+        'name' => $row['name'],
+        'total' => (int)$row['total_students'],
+        'male' => (int)$row['male'],
+        'female' => (int)$row['female']
+    ];
 }
-$stmt->close();
 
 // Get document status counts for department
 $stmt = $conn->prepare("
@@ -150,15 +130,11 @@ $stmt = $conn->prepare("
     WHERE sec.department_id = ?
     GROUP BY d.status
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $docStatusCounts[$row['status']] = (int)$row['count'];
-    }
+$stmt->execute([$department_id]);
+$rows = $stmt->fetchAll();
+foreach ($rows as $row) {
+    $docStatusCounts[$row['status']] = (int)$row['count'];
 }
-$stmt->close();
 
 // Get monitoring trends for department (last 7 days)
 $stmt = $conn->prepare("
@@ -169,18 +145,14 @@ $stmt = $conn->prepare("
     JOIN students s ON m.student_id = s.id
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ? 
-    AND m.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND m.created_at >= CURRENT_DATE - INTERVAL '7 days'
     GROUP BY DATE(m.created_at)
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $monitoringTrends[$row['date']] = (int)$row['count'];
-    }
+$stmt->execute([$department_id]);
+$rows = $stmt->fetchAll();
+foreach ($rows as $row) {
+    $monitoringTrends[$row['date']] = (int)$row['count'];
 }
-$stmt->close();
 
 // Get recent documents for department
 $stmt = $conn->prepare("
@@ -196,20 +168,16 @@ $stmt = $conn->prepare("
     ORDER BY d.updated_at DESC 
     LIMIT 5
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $recentDocuments[] = [
-            'document' => $row['document_name'],
-            'status' => $row['status'],
-            'student' => $row['student_name'],
-            'date' => $row['updated_at']
-        ];
-    }
+$stmt->execute([$department_id]);
+$rows = $stmt->fetchAll();
+foreach ($rows as $row) {
+    $recentDocuments[] = [
+        'document' => $row['document_name'],
+        'status' => $row['status'],
+        'student' => $row['student_name'],
+        'date' => $row['updated_at']
+    ];
 }
-$stmt->close();
 
 // Get recent monitoring for department
 $stmt = $conn->prepare("
@@ -225,20 +193,16 @@ $stmt = $conn->prepare("
     ORDER BY m.created_at DESC 
     LIMIT 5
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $recentMonitoring[] = [
-            'activity' => $row['activity'],
-            'status' => $row['status'],
-            'student' => $row['student_name'],
-            'date' => $row['created_at']
-        ];
-    }
+$stmt->execute([$department_id]);
+$rows = $stmt->fetchAll();
+foreach ($rows as $row) {
+    $recentMonitoring[] = [
+        'activity' => $row['activity'],
+        'status' => $row['status'],
+        'student' => $row['student_name'],
+        'date' => $row['created_at']
+    ];
 }
-$stmt->close();
 
 // Get document completion stats
 $stmt = $conn->prepare("
@@ -256,11 +220,9 @@ $stmt = $conn->prepare("
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ?
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    $row = $result->fetch_assoc();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) {
     $documentCompletionStats = [
         'Certificate of Completion' => $row['coc'] ?? 0,
         'Daily Time Record' => $row['dtr'] ?? 0,
@@ -272,7 +234,6 @@ if ($result) {
         'OJT Evaluation Form' => $row['oef'] ?? 0
     ];
 }
-$stmt->close();
 
 // Get student hours statistics
 $stmt = $conn->prepare("
@@ -285,11 +246,9 @@ $stmt = $conn->prepare("
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.department_id = ?
 ");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result) {
-    $row = $result->fetch_assoc();
+$stmt->execute([$department_id]);
+$row = $stmt->fetch();
+if ($row) {
     $studentHoursStats = [
         'Completed' => $row['completed'] ?? 0,
         'Almost Completed (75-99%)' => $row['almost_completed'] ?? 0,
@@ -297,7 +256,6 @@ if ($result) {
         'Behind (<50%)' => $row['behind'] ?? 0
     ];
 }
-$stmt->close();
 
 function sanitize($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');

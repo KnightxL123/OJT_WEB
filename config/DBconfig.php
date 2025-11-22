@@ -1,59 +1,51 @@
 <?php
-// Detect environment: Render uses environment variables, local doesn't
-// Check for actual Render-specific environment variables
-$isProduction = (getenv('DATABASE_URL') !== false && getenv('DATABASE_URL') !== '') 
-             || (getenv('RENDER') !== false && getenv('RENDER') !== '') 
-             || (getenv('RENDER_SERVICE_NAME') !== false && getenv('RENDER_SERVICE_NAME') !== '');
+// Unified PostgreSQL configuration using PDO.
+// Prefer DATABASE_URL / INTERNAL_DATABASE_URL (Render style). If not set,
+// fall back to a local PostgreSQL instance.
 
-if ($isProduction) {
-    // Production: PostgreSQL on Render
-    // Use DATABASE_URL if available (Render's standard approach)
-    $database_url = getenv('INTERNAL_DATABASE_URL') ?: getenv('DATABASE_URL');
-    
-    if ($database_url) {
-        // Parse DATABASE_URL: postgresql://user:pass@host:port/dbname
-        $db_config = parse_url($database_url);
-        $db_host = $db_config['host'];
-        $db_name = ltrim($db_config['path'], '/');
-        $db_user = $db_config['user'];
-        $db_pass = $db_config['pass'];
-        $db_port = isset($db_config['port']) ? $db_config['port'] : 5432;
-    } else {
-        // Fallback: use Internal Database URL format from your Render dashboard
-        $db_host = getenv('DB_HOST') ?: 'dpg-d44fmvcvpn1nc73f3k1rg-a.singapore-postgres.render.com';
-        $db_name = getenv('DB_NAME') ?: 'ojt_system';
-        $db_user = getenv('DB_USER') ?: 'ojt_user';
-        $db_pass = getenv('DB_PASS') ?: 'uIR97YPSCah0V5xDMxmy0SUdfuXYJEPH';
-        $db_port = getenv('DB_PORT') ?: 5432;
+// Try to read a full connection URL first
+$database_url = getenv('INTERNAL_DATABASE_URL') ?: getenv('DATABASE_URL');
+
+if ($database_url) {
+    // Expected format: postgresql://user:pass@host:port/dbname
+    $db_config = parse_url($database_url);
+    if ($db_config === false) {
+        die('Invalid DATABASE_URL format.');
     }
-    $db_driver = 'pgsql';
+
+    $db_host = $db_config['host'] ?? 'localhost';
+    $db_name = isset($db_config['path']) ? ltrim($db_config['path'], '/') : '';
+    $db_user = $db_config['user'] ?? '';
+    $db_pass = $db_config['pass'] ?? '';
+    $db_port = $db_config['port'] ?? 5432;
+    $use_ssl = true; // Render typically requires SSL
+    $env_type = 'Production (Render/PostgreSQL via DATABASE_URL)';
 } else {
-    // Local: MySQL on XAMPP
-    $db_host = 'localhost';
-    $db_name = 'ojt';
-    $db_user = 'root';
-    $db_pass = '';
-    $db_port = 3306;
-    $db_driver = 'mysql';
+    // Local PostgreSQL defaults (adjust as needed for your machine)
+    $db_host = getenv('DB_HOST') ?: 'localhost';
+    $db_name = getenv('DB_NAME') ?: 'ojt_system';
+    $db_user = getenv('DB_USER') ?: 'ojt_user';
+    $db_pass = getenv('DB_PASS') ?: '';
+    $db_port = getenv('DB_PORT') ?: 5432;
+    $use_ssl = false;
+    $env_type = 'Local (PostgreSQL)';
 }
 
-// Use PDO for both environments (works with MySQL and PostgreSQL)
 try {
-    if ($isProduction && $db_driver === 'pgsql') {
-        $dsn = "pgsql:host=$db_host;port=$db_port;dbname=$db_name;sslmode=require";
-    } else {
-        $dsn = "$db_driver:host=$db_host;port=$db_port;dbname=$db_name";
+    $dsn = "pgsql:host=$db_host;port=$db_port;dbname=$db_name";
+    if ($use_ssl) {
+        $dsn .= ';sslmode=require';
     }
+
     $conn = new PDO($dsn, $db_user, $db_pass);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $env_type = $isProduction ? 'Production (Render)' : 'Local (XAMPP)';
     $available_drivers = implode(', ', PDO::getAvailableDrivers());
     die("Database connection failed!<br>
          Environment: $env_type<br>
-         Trying driver: $db_driver<br>
-         Available drivers: $available_drivers<br>
+         DSN: $dsn<br>
+         Available PDO drivers: $available_drivers<br>
          Error: " . $e->getMessage());
 }
 ?>
