@@ -1,20 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     redirect_to('auth/login.php');
-}
-
-// Database config
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-
-// Connect
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
 }
 
 // Gather statistics for dashboard (example student stats)
@@ -24,18 +13,18 @@ $femaleStudents = 'N/A';
 
 $res = $conn->query("SELECT COUNT(*) as total FROM students");
 if ($res) {
-    $row = $res->fetch_assoc();
+    $row = $res->fetch();
     $totalStudents = $row['total'] ?? 0;
 }
 
 $res = $conn->query("SELECT COUNT(*) as male FROM students WHERE gender = 'Male'");
 if ($res) {
-    $row = $res->fetch_assoc();
+    $row = $res->fetch();
     $maleStudents = $row['male'] ?? 0;
 }
 $res = $conn->query("SELECT COUNT(*) as female FROM students WHERE gender = 'Female'");
 if ($res) {
-    $row = $res->fetch_assoc();
+    $row = $res->fetch();
     $femaleStudents = $row['female'] ?? 0;
 }
 
@@ -48,15 +37,18 @@ $docStatuses = [
 ];
 $statusList = implode("','", array_keys($docStatuses));
 $sql = "SELECT status, COUNT(*) AS count FROM documents WHERE status IN ('$statusList') GROUP BY status";
-$res = $conn->query($sql);
-if ($res) {
-    while ($row = $res->fetch_assoc()) {
-        $status = $row['status'];
-        $count = (int)$row['count'];
-        if (isset($docStatuses[$status])) {
-            $docStatuses[$status] = $count;
+try {
+    $stmt = $conn->query($sql);
+    if ($stmt) {
+        while ($row = $stmt->fetch()) {
+            $status = $row['status'];
+            $count = (int)$row['count'];
+            if (isset($docStatuses[$status])) {
+                $docStatuses[$status] = $count;
+            }
         }
     }
+} catch (PDOException $e) {
 }
 
 // Programs completion rates for dashboard
@@ -67,20 +59,21 @@ $sql = "SELECT p.name,
         FROM programs p
         LEFT JOIN student_programs sp ON p.id = sp.program_id
         GROUP BY p.id ORDER BY p.name";
-$res = $conn->query($sql);
-if ($res) {
-    while ($row = $res->fetch_assoc()) {
-        $total = (int)$row['total_students'];
-        $completed = (int)$row['completed_students'];
-        $percentage = $total > 0 ? round(($completed / $total) * 100, 2) : 0.0;
-        $programsCompletion[] = [
-            'name' => $row['name'],
-            'completion' => $percentage,
-        ];
+try {
+    $stmt = $conn->query($sql);
+    if ($stmt) {
+        while ($row = $stmt->fetch()) {
+            $total = (int)$row['total_students'];
+            $completed = (int)$row['completed_students'];
+            $percentage = $total > 0 ? round(($completed / $total) * 100, 2) : 0.0;
+            $programsCompletion[] = [
+                'name' => $row['name'],
+                'completion' => $percentage,
+            ];
+        }
     }
+} catch (PDOException $e) {
 }
-
-$conn->close();
 
 function sanitize($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
