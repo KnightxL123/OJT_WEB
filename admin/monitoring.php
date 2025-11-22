@@ -23,7 +23,7 @@ $sectionId = isset($_GET['section']) ? intval($_GET['section']) : null;
 if (!$deptId && !$programId && !$sectionId) {
     $departments = [];
     try {
-        $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
+        $stmt = $conn->query("SELECT id, name FROM departments ORDER BY name");
         $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $departments = [];
@@ -95,7 +95,7 @@ if (!$deptId && !$programId && !$sectionId) {
                     // Count programs in department
                     $programCount = 0;
                     try {
-                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM programs WHERE department_id = :dept_id");
+                        $countStmt = $conn->prepare("SELECT COUNT(*) FROM programs WHERE department_id = :dept_id");
                         $countStmt->execute([':dept_id' => $dept['id']]);
                         $programCount = (int)$countStmt->fetchColumn();
                     } catch (Exception $e) {
@@ -123,7 +123,7 @@ if (!$deptId && !$programId && !$sectionId) {
 // --- Level 2: Show programs in a department ---
 if ($deptId && !$programId && !$sectionId) {
     // Get department name
-    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
     $stmt->execute([':id' => $deptId]);
     $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$deptRow) {
@@ -135,7 +135,7 @@ if ($deptId && !$programId && !$sectionId) {
     $breadcrumbs[$deptName] = "monitoring.php?dept=$deptId";
 
     // Get programs in this department
-    $stmt = $pdo->prepare("SELECT id, name FROM programs WHERE department_id = :dept_id ORDER BY name");
+    $stmt = $conn->prepare("SELECT id, name FROM programs WHERE department_id = :dept_id ORDER BY name");
     $stmt->execute([':dept_id' => $deptId]);
     $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -222,7 +222,7 @@ if ($deptId && !$programId && !$sectionId) {
                     // Count sections in program
                     $sectionCount = 0;
                     try {
-                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM sections WHERE program_id = :program_id");
+                        $countStmt = $conn->prepare("SELECT COUNT(*) FROM sections WHERE program_id = :program_id");
                         $countStmt->execute([':program_id' => $prog['id']]);
                         $sectionCount = (int)$countStmt->fetchColumn();
                     } catch (Exception $e) {
@@ -250,7 +250,7 @@ if ($deptId && !$programId && !$sectionId) {
 // --- Level 3: Show sections in a program ---
 if ($deptId && $programId && !$sectionId) {
     // Get department name
-    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
     $stmt->execute([':id' => $deptId]);
     $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$deptRow) {
@@ -260,7 +260,7 @@ if ($deptId && $programId && !$sectionId) {
     $deptName = $deptRow['name'];
 
     // Get program name
-    $stmt = $pdo->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
+    $stmt = $conn->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
     $stmt->execute([
         ':program_id' => $programId,
         ':dept_id' => $deptId,
@@ -276,7 +276,7 @@ if ($deptId && $programId && !$sectionId) {
     $breadcrumbs[$programName] = "monitoring.php?dept=$deptId&program=$programId";
 
     // Get sections in this program
-    $stmt = $pdo->prepare("SELECT id, name FROM sections WHERE program_id = :program_id ORDER BY name");
+    $stmt = $conn->prepare("SELECT id, name FROM sections WHERE program_id = :program_id ORDER BY name");
     $stmt->execute([':program_id' => $programId]);
     $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -362,7 +362,7 @@ if ($deptId && $programId && !$sectionId) {
                     // Count students in section
                     $studentCount = 0;
                     try {
-                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE section_id = :section_id");
+                        $countStmt = $conn->prepare("SELECT COUNT(*) FROM students WHERE section_id = :section_id");
                         $countStmt->execute([':section_id' => $section['id']]);
                         $studentCount = (int)$countStmt->fetchColumn();
                     } catch (Exception $e) {
@@ -390,7 +390,7 @@ if ($deptId && $programId && !$sectionId) {
 // --- Level 4: Show students in a section ---
 if ($deptId && $programId && $sectionId) {
     // Get department name
-    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
     $stmt->execute([':id' => $deptId]);
     $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$deptRow) {
@@ -400,7 +400,7 @@ if ($deptId && $programId && $sectionId) {
     $deptName = $deptRow['name'];
 
     // Get program name
-    $stmt = $pdo->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
+    $stmt = $conn->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
     $stmt->execute([
         ':program_id' => $programId,
         ':dept_id' => $deptId,
@@ -413,7 +413,7 @@ if ($deptId && $programId && $sectionId) {
     $programName = $progRow['name'];
 
     // Get section name
-    $stmt = $pdo->prepare("SELECT name FROM sections WHERE id = :section_id AND program_id = :program_id");
+    $stmt = $conn->prepare("SELECT name FROM sections WHERE id = :section_id AND program_id = :program_id");
     $stmt->execute([
         ':section_id' => $sectionId,
         ':program_id' => $programId,
@@ -430,7 +430,7 @@ if ($deptId && $programId && $sectionId) {
     $breadcrumbs[$sectionName] = "monitoring.php?dept=$deptId&program=$programId&section=$sectionId";
 
     // Get adviser assigned to this section
-    $stmt = $pdo->prepare("SELECT advisers.name FROM advisers 
+    $stmt = $conn->prepare("SELECT advisers.name FROM advisers 
                            JOIN section_adviser ON advisers.id = section_adviser.adviser_id 
                            WHERE section_adviser.section_id = :section_id");
     $stmt->execute([':section_id' => $sectionId]);
@@ -438,7 +438,7 @@ if ($deptId && $programId && $sectionId) {
     $adviserName = $adviserRow ? $adviserRow['name'] : 'No adviser assigned';
 
     // Get students in this section
-    $stmt = $pdo->prepare("SELECT id, student_id, name, hours_completed, total_hours 
+    $stmt = $conn->prepare("SELECT id, student_id, name, hours_completed, total_hours 
                            FROM students 
                            WHERE section_id = :section_id 
                            ORDER BY name");

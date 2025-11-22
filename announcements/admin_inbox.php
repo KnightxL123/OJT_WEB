@@ -20,7 +20,7 @@ try {
         GROUP BY a.id
         ORDER BY a.created_at DESC");
     $stmt->execute([$_SESSION['user_id']]);
-    $res = $stmt->fetchAll();
+    $res = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die('Database error: ' . $e->getMessage());
 }
@@ -432,17 +432,15 @@ try {
         </div>
 
         <?php 
-        $total_announcements = $res->num_rows;
+        $total_announcements = count($res);
         $total_recipients = 0;
         $total_read = 0;
         
         // Calculate totals
-        $res->data_seek(0); // Reset pointer
-        while ($row = $res->fetch_assoc()) {
+        foreach ($res as $row) {
             $total_recipients += $row['total_sent'];
             $total_read += $row['total_read'];
         }
-        $res->data_seek(0); // Reset pointer again for display
         ?>
 
         <!-- Statistics Cards -->
@@ -487,7 +485,7 @@ try {
                         </tr>
                     </thead>
                     <tbody>
-                    <?php while ($row = $res->fetch_assoc()): 
+                    <?php foreach ($res as $row): 
                         $read_rate = $row['total_sent'] > 0 ? round(($row['total_read'] / $row['total_sent']) * 100) : 0;
                         $read_rate_class = $read_rate >= 70 ? 'high' : ($read_rate >= 40 ? 'medium' : 'low');
                     ?>
@@ -509,7 +507,7 @@ try {
                                 </span>
                             </td>
                         </tr>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
@@ -584,5 +582,5 @@ try {
 </html>
 
 <?php
-$conn->close();
+// PDO connection from DBconfig.php is shared; no explicit close needed.
 ?>
