@@ -8,7 +8,7 @@ $isProduction = (getenv('DATABASE_URL') !== false && getenv('DATABASE_URL') !== 
 if ($isProduction) {
     // Production: PostgreSQL on Render
     // Use DATABASE_URL if available (Render's standard approach)
-    $database_url = getenv('DATABASE_URL');
+    $database_url = getenv('INTERNAL_DATABASE_URL') ?: getenv('DATABASE_URL');
     
     if ($database_url) {
         // Parse DATABASE_URL: postgresql://user:pass@host:port/dbname
@@ -39,7 +39,11 @@ if ($isProduction) {
 
 // Use PDO for both environments (works with MySQL and PostgreSQL)
 try {
-    $dsn = "$db_driver:host=$db_host;port=$db_port;dbname=$db_name";
+    if ($isProduction && $db_driver === 'pgsql') {
+        $dsn = "pgsql:host=$db_host;port=$db_port;dbname=$db_name;sslmode=require";
+    } else {
+        $dsn = "$db_driver:host=$db_host;port=$db_port;dbname=$db_name";
+    }
     $conn = new PDO($dsn, $db_user, $db_pass);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
