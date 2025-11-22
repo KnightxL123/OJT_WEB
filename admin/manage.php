@@ -1,23 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     redirect_to('auth/login.php');
-}
-
-// Database connection with error handling
-try {
-    $conn = new mysqli("localhost", "root", "", "ojt");
-    
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-    
-    // Set charset to ensure proper encoding
-    $conn->set_charset("utf8mb4");
-
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
 }
 
 // Initialize messages
@@ -28,19 +14,24 @@ $error_message = '';
 if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['toggle_dept_status'])) {
     try {
         $dept_id = intval($_GET['id']);
-        $current_status = $conn->query("SELECT status FROM departments WHERE id = $dept_id")->fetch_assoc()['status'];
-        $new_status = $current_status == 'active' ? 'inactive' : 'active';
-        
-        $stmt = $conn->prepare("UPDATE departments SET status = ? WHERE id = ?");
-        $stmt->bind_param("si", $new_status, $dept_id);
-        
-        if ($stmt->execute()) {
-            $success_message = "Department status updated successfully!";
-        } else {
-            throw new Exception("Error updating department status: " . $stmt->error);
+
+        $stmt = $pdo->prepare("SELECT status FROM departments WHERE id = :id");
+        $stmt->execute([':id' => $dept_id]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$current) {
+            throw new Exception("Department not found");
         }
-        
-        $stmt->close();
+
+        $new_status = $current['status'] === 'active' ? 'inactive' : 'active';
+
+        $updateStmt = $pdo->prepare("UPDATE departments SET status = :status WHERE id = :id");
+        $updateStmt->execute([
+            ':status' => $new_status,
+            ':id' => $dept_id,
+        ]);
+
+        $success_message = "Department status updated successfully!";
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -50,19 +41,24 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['toggle_dept_status'])) {
 if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['toggle_prog_status'])) {
     try {
         $prog_id = intval($_GET['id']);
-        $current_status = $conn->query("SELECT status FROM programs WHERE id = $prog_id")->fetch_assoc()['status'];
-        $new_status = $current_status == 'active' ? 'inactive' : 'active';
-        
-        $stmt = $conn->prepare("UPDATE programs SET status = ? WHERE id = ?");
-        $stmt->bind_param("si", $new_status, $prog_id);
-        
-        if ($stmt->execute()) {
-            $success_message = "Program status updated successfully!";
-        } else {
-            throw new Exception("Error updating program status: " . $stmt->error);
+
+        $stmt = $pdo->prepare("SELECT status FROM programs WHERE id = :id");
+        $stmt->execute([':id' => $prog_id]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$current) {
+            throw new Exception("Program not found");
         }
-        
-        $stmt->close();
+
+        $new_status = $current['status'] === 'active' ? 'inactive' : 'active';
+
+        $updateStmt = $pdo->prepare("UPDATE programs SET status = :status WHERE id = :id");
+        $updateStmt->execute([
+            ':status' => $new_status,
+            ':id' => $prog_id,
+        ]);
+
+        $success_message = "Program status updated successfully!";
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -72,28 +68,19 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['toggle_prog_status'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_department'])) {
     try {
         $dept_name = trim($_POST['department_name']);
-        
+
         if (empty($dept_name)) {
             throw new Exception("Department name cannot be empty");
         }
-        
+
         if (!preg_match('/^[a-zA-Z0-9\s\-]+$/', $dept_name)) {
             throw new Exception("Invalid department name format");
         }
-        
-        $stmt = $conn->prepare("INSERT INTO departments (name, status) VALUES (?, 'active')");
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
-        
-        $stmt->bind_param("s", $dept_name);
-        if (!$stmt->execute()) {
-            throw new Exception("Execute failed: " . $stmt->error);
-        }
-        
-        $stmt->close();
+
+        $stmt = $pdo->prepare("INSERT INTO departments (name, status) VALUES (:name, 'active')");
+        $stmt->execute([':name' => $dept_name]);
+
         $success_message = "Department added successfully!";
-        
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -110,41 +97,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_program'])) {
         if (empty($program_name)) {
             throw new Exception("Program name cannot be empty");
         }
-        
+
         if (!preg_match('/^[a-zA-Z0-9\s\-]+$/', $program_name)) {
             throw new Exception("Invalid program name format");
         }
-        
+
         if ($department_id <= 0) {
             throw new Exception("Invalid department");
         }
 
         // Check if program already exists in this department
-        $check_stmt = $conn->prepare("SELECT id FROM programs WHERE name = ? AND department_id = ?");
-        $check_stmt->bind_param("si", $program_name, $department_id);
-        $check_stmt->execute();
-        $check_stmt->store_result();
-        
-        if ($check_stmt->num_rows > 0) {
+        $check_stmt = $pdo->prepare("SELECT id FROM programs WHERE name = :name AND department_id = :department_id");
+        $check_stmt->execute([
+            ':name' => $program_name,
+            ':department_id' => $department_id,
+        ]);
+
+        if ($check_stmt->fetch(PDO::FETCH_ASSOC)) {
             throw new Exception("This program already exists in the selected department");
         }
-        $check_stmt->close();
 
         // Insert new program
-        $stmt = $conn->prepare("INSERT INTO programs (name, department_id, logo_url, status) VALUES (?, ?, ?, 'active')");
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
-        
-        $stmt->bind_param("sis", $program_name, $department_id, $logo_url);
-        
-        if ($stmt->execute()) {
-            $success_message = "Program added successfully!";
-        } else {
-            throw new Exception("Error adding program: " . $stmt->error);
-        }
-        
-        $stmt->close();
+        $stmt = $pdo->prepare("INSERT INTO programs (name, department_id, logo_url, status) VALUES (:name, :department_id, :logo_url, 'active')");
+        $stmt->execute([
+            ':name' => $program_name,
+            ':department_id' => $department_id,
+            ':logo_url' => $logo_url,
+        ]);
+
+        $success_message = "Program added successfully!";
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -154,28 +135,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_program'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_department'])) {
     try {
         $dept_id = intval($_POST['dept_id']);
-        
+
         // First check if department has any programs
-        $check_stmt = $conn->prepare("SELECT COUNT(*) as program_count FROM programs WHERE department_id = ?");
-        $check_stmt->bind_param("i", $dept_id);
-        $check_stmt->execute();
-        $result = $check_stmt->get_result()->fetch_assoc();
-        $check_stmt->close();
-        
-        if ($result['program_count'] > 0) {
+        $check_stmt = $pdo->prepare("SELECT COUNT(*) AS program_count FROM programs WHERE department_id = :id");
+        $check_stmt->execute([':id' => $dept_id]);
+        $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result && $result['program_count'] > 0) {
             throw new Exception("Cannot delete department with existing programs. Please delete or move the programs first.");
         }
-        
-        $stmt = $conn->prepare("DELETE FROM departments WHERE id = ?");
-        $stmt->bind_param("i", $dept_id);
-        
-        if ($stmt->execute()) {
-            $success_message = "Department deleted successfully!";
-        } else {
-            throw new Exception("Error deleting department: " . $stmt->error);
-        }
-        
-        $stmt->close();
+
+        $stmt = $pdo->prepare("DELETE FROM departments WHERE id = :id");
+        $stmt->execute([':id' => $dept_id]);
+
+        $success_message = "Department deleted successfully!";
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -185,28 +158,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_department'])) 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_program'])) {
     try {
         $prog_id = intval($_POST['prog_id']);
-        
+
         // Check if program has any students
-        $check_stmt = $conn->prepare("SELECT COUNT(*) as student_count FROM student_programs WHERE program_id = ?");
-        $check_stmt->bind_param("i", $prog_id);
-        $check_stmt->execute();
-        $result = $check_stmt->get_result()->fetch_assoc();
-        $check_stmt->close();
-        
-        if ($result['student_count'] > 0) {
+        $check_stmt = $pdo->prepare("SELECT COUNT(*) AS student_count FROM student_programs WHERE program_id = :id");
+        $check_stmt->execute([':id' => $prog_id]);
+        $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result && $result['student_count'] > 0) {
             throw new Exception("Cannot delete program with enrolled students. Please reassign or remove the students first.");
         }
-        
-        $stmt = $conn->prepare("DELETE FROM programs WHERE id = ?");
-        $stmt->bind_param("i", $prog_id);
-        
-        if ($stmt->execute()) {
-            $success_message = "Program deleted successfully!";
-        } else {
-            throw new Exception("Error deleting program: " . $stmt->error);
-        }
-        
-        $stmt->close();
+
+        $stmt = $pdo->prepare("DELETE FROM programs WHERE id = :id");
+        $stmt->execute([':id' => $prog_id]);
+
+        $success_message = "Program deleted successfully!";
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -214,10 +179,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_program'])) {
 
 // Fetch active departments with error handling
 try {
-    $departments = $conn->query("SELECT * FROM departments ORDER BY name ASC");
-    if (!$departments) {
-        throw new Exception("Failed to fetch departments: " . $conn->error);
-    }
+    $deptStmt = $pdo->query("SELECT * FROM departments ORDER BY name ASC");
+    $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error_message = $e->getMessage();
     $departments = []; // Empty array to prevent errors in view
@@ -229,7 +192,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Manage Departments</title>
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <style>
@@ -391,8 +354,8 @@ try {
         </form>
 
         <!-- Department List -->
-        <?php if ($departments && $departments->num_rows > 0): ?>
-            <?php while ($dept = $departments->fetch_assoc()): ?>
+        <?php if (!empty($departments)): ?>
+            <?php foreach ($departments as $dept): ?>
                 <div class="card mb-3">
                     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                         <div>
@@ -422,10 +385,12 @@ try {
                         <ul class="mt-2">
                             <?php
                             $dept_id = $dept['id'];
-                            $programs_result = $conn->query("SELECT * FROM programs WHERE department_id = $dept_id ORDER BY name ASC");
-                            
-                            if ($programs_result && $programs_result->num_rows > 0):
-                                while ($prog = $programs_result->fetch_assoc()):
+                            $progStmt = $pdo->prepare("SELECT * FROM programs WHERE department_id = :dept_id ORDER BY name ASC");
+                            $progStmt->execute([':dept_id' => $dept_id]);
+                            $programs = $progStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                            if (!empty($programs)):
+                                foreach ($programs as $prog):
                             ?>
                                 <li class="program-item">
                                     <div>
@@ -452,7 +417,7 @@ try {
                                     </div>
                                 </li>
                             <?php 
-                                endwhile; 
+                                endforeach; 
                             else: 
                             ?>
                                 <li class="no-programs">No programs listed.</li>
@@ -470,7 +435,7 @@ try {
                         </div>
                     </div>
                 </div>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
         <?php else: ?>
             <div class="alert alert-info">
                 No departments found. Please add a department to get started.
@@ -607,6 +572,5 @@ try {
 </html>
 
 <?php
-// Close database connection
-$conn->close();
+// PDO connection from DBconfig.php is shared; no explicit close needed.
 ?>

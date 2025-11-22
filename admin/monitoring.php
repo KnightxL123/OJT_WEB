@@ -1,19 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'user'])) {
-    header('Location: login.php');
-    exit;
-}
-
-$dbHost = 'localhost';
-$dbName = 'OJT';
-$dbUser = 'root';
-$dbPass = '';
-
-$conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
+    redirect_to('auth/login.php');
 }
 
 // Initialize breadcrumbs
@@ -31,10 +21,12 @@ $sectionId = isset($_GET['section']) ? intval($_GET['section']) : null;
 
 // --- Level 1: Show all departments ---
 if (!$deptId && !$programId && !$sectionId) {
-    $res = $conn->query("SELECT id, name FROM departments ORDER BY name");
     $departments = [];
-    while ($row = $res->fetch_assoc()) {
-        $departments[] = $row;
+    try {
+        $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $departments = [];
     }
     ?>
     <!DOCTYPE html>
@@ -101,12 +93,14 @@ if (!$deptId && !$programId && !$sectionId) {
             <div class="folder-grid">
                 <?php foreach ($departments as $dept): 
                     // Count programs in department
-                    $countStmt = $conn->prepare("SELECT COUNT(*) FROM programs WHERE department_id = ?");
-                    $countStmt->bind_param('i', $dept['id']);
-                    $countStmt->execute();
-                    $countStmt->bind_result($programCount);
-                    $countStmt->fetch();
-                    $countStmt->close();
+                    $programCount = 0;
+                    try {
+                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM programs WHERE department_id = :dept_id");
+                        $countStmt->execute([':dept_id' => $dept['id']]);
+                        $programCount = (int)$countStmt->fetchColumn();
+                    } catch (Exception $e) {
+                        $programCount = 0;
+                    }
                 ?>
                     <a class="folder" href="monitoring.php?dept=<?php echo $dept['id']; ?>">
                         <i class="bi bi-building"></i>
@@ -123,34 +117,27 @@ if (!$deptId && !$programId && !$sectionId) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
 // --- Level 2: Show programs in a department ---
 if ($deptId && !$programId && !$sectionId) {
     // Get department name
-    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-    $stmt->bind_param('i', $deptId);
-    $stmt->execute();
-    $stmt->bind_result($deptName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt->execute([':id' => $deptId]);
+    $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$deptRow) {
         header('Location: monitoring.php');
         exit;
     }
-    $stmt->close();
+    $deptName = $deptRow['name'];
 
     $breadcrumbs[$deptName] = "monitoring.php?dept=$deptId";
 
     // Get programs in this department
-    $stmt = $conn->prepare("SELECT id, name FROM programs WHERE department_id = ? ORDER BY name");
-    $stmt->bind_param('i', $deptId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $programs = $res->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $stmt = $pdo->prepare("SELECT id, name FROM programs WHERE department_id = :dept_id ORDER BY name");
+    $stmt->execute([':dept_id' => $deptId]);
+    $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     ?>
     <!DOCTYPE html>
@@ -233,12 +220,14 @@ if ($deptId && !$programId && !$sectionId) {
             <div class="folder-grid">
                 <?php foreach ($programs as $prog): 
                     // Count sections in program
-                    $countStmt = $conn->prepare("SELECT COUNT(*) FROM sections WHERE program_id = ?");
-                    $countStmt->bind_param('i', $prog['id']);
-                    $countStmt->execute();
-                    $countStmt->bind_result($sectionCount);
-                    $countStmt->fetch();
-                    $countStmt->close();
+                    $sectionCount = 0;
+                    try {
+                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM sections WHERE program_id = :program_id");
+                        $countStmt->execute([':program_id' => $prog['id']]);
+                        $sectionCount = (int)$countStmt->fetchColumn();
+                    } catch (Exception $e) {
+                        $sectionCount = 0;
+                    }
                 ?>
                     <a class="folder" href="monitoring.php?dept=<?php echo $deptId; ?>&program=<?php echo $prog['id']; ?>">
                         <i class="bi bi-collection"></i>
@@ -255,48 +244,41 @@ if ($deptId && !$programId && !$sectionId) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
 // --- Level 3: Show sections in a program ---
 if ($deptId && $programId && !$sectionId) {
     // Get department name
-    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-    $stmt->bind_param('i', $deptId);
-    $stmt->execute();
-    $stmt->bind_result($deptName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt->execute([':id' => $deptId]);
+    $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$deptRow) {
         header('Location: monitoring.php');
         exit;
     }
-    $stmt->close();
+    $deptName = $deptRow['name'];
 
     // Get program name
-    $stmt = $conn->prepare("SELECT name FROM programs WHERE id = ? AND department_id = ?");
-    $stmt->bind_param('ii', $programId, $deptId);
-    $stmt->execute();
-    $stmt->bind_result($programName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
+    $stmt->execute([
+        ':program_id' => $programId,
+        ':dept_id' => $deptId,
+    ]);
+    $progRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$progRow) {
         header('Location: monitoring.php?dept=' . $deptId);
         exit;
     }
-    $stmt->close();
+    $programName = $progRow['name'];
 
     $breadcrumbs[$deptName] = "monitoring.php?dept=$deptId";
     $breadcrumbs[$programName] = "monitoring.php?dept=$deptId&program=$programId";
 
     // Get sections in this program
-    $stmt = $conn->prepare("SELECT id, name FROM sections WHERE program_id = ? ORDER BY name");
-    $stmt->bind_param('i', $programId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $sections = $res->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $stmt = $pdo->prepare("SELECT id, name FROM sections WHERE program_id = :program_id ORDER BY name");
+    $stmt->execute([':program_id' => $programId]);
+    $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     ?>
     <!DOCTYPE html>
@@ -378,12 +360,14 @@ if ($deptId && $programId && !$sectionId) {
             <div class="folder-grid">
                 <?php foreach ($sections as $section): 
                     // Count students in section
-                    $countStmt = $conn->prepare("SELECT COUNT(*) FROM students WHERE section_id = ?");
-                    $countStmt->bind_param('i', $section['id']);
-                    $countStmt->execute();
-                    $countStmt->bind_result($studentCount);
-                    $countStmt->fetch();
-                    $countStmt->close();
+                    $studentCount = 0;
+                    try {
+                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE section_id = :section_id");
+                        $countStmt->execute([':section_id' => $section['id']]);
+                        $studentCount = (int)$countStmt->fetchColumn();
+                    } catch (Exception $e) {
+                        $studentCount = 0;
+                    }
                 ?>
                     <a class="folder" href="monitoring.php?dept=<?php echo $deptId; ?>&program=<?php echo $programId; ?>&section=<?php echo $section['id']; ?>">
                         <i class="bi bi-people-fill"></i>
@@ -400,76 +384,66 @@ if ($deptId && $programId && !$sectionId) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
 // --- Level 4: Show students in a section ---
 if ($deptId && $programId && $sectionId) {
     // Get department name
-    $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-    $stmt->bind_param('i', $deptId);
-    $stmt->execute();
-    $stmt->bind_result($deptName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM departments WHERE id = :id");
+    $stmt->execute([':id' => $deptId]);
+    $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$deptRow) {
         header('Location: monitoring.php');
         exit;
     }
-    $stmt->close();
+    $deptName = $deptRow['name'];
 
     // Get program name
-    $stmt = $conn->prepare("SELECT name FROM programs WHERE id = ? AND department_id = ?");
-    $stmt->bind_param('ii', $programId, $deptId);
-    $stmt->execute();
-    $stmt->bind_result($programName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM programs WHERE id = :program_id AND department_id = :dept_id");
+    $stmt->execute([
+        ':program_id' => $programId,
+        ':dept_id' => $deptId,
+    ]);
+    $progRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$progRow) {
         header('Location: monitoring.php?dept=' . $deptId);
         exit;
     }
-    $stmt->close();
+    $programName = $progRow['name'];
 
     // Get section name
-    $stmt = $conn->prepare("SELECT name FROM sections WHERE id = ? AND program_id = ?");
-    $stmt->bind_param('ii', $sectionId, $programId);
-    $stmt->execute();
-    $stmt->bind_result($sectionName);
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        $conn->close();
+    $stmt = $pdo->prepare("SELECT name FROM sections WHERE id = :section_id AND program_id = :program_id");
+    $stmt->execute([
+        ':section_id' => $sectionId,
+        ':program_id' => $programId,
+    ]);
+    $sectionRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$sectionRow) {
         header('Location: monitoring.php?dept=' . $deptId . '&program=' . $programId);
         exit;
     }
-    $stmt->close();
+    $sectionName = $sectionRow['name'];
 
     $breadcrumbs[$deptName] = "monitoring.php?dept=$deptId";
     $breadcrumbs[$programName] = "monitoring.php?dept=$deptId&program=$programId";
     $breadcrumbs[$sectionName] = "monitoring.php?dept=$deptId&program=$programId&section=$sectionId";
 
     // Get adviser assigned to this section
-    $stmt = $conn->prepare("SELECT advisers.name FROM advisers 
+    $stmt = $pdo->prepare("SELECT advisers.name FROM advisers 
                            JOIN section_adviser ON advisers.id = section_adviser.adviser_id 
-                           WHERE section_adviser.section_id = ?");
-    $stmt->bind_param('i', $sectionId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $adviserRow = $res->fetch_assoc();
+                           WHERE section_adviser.section_id = :section_id");
+    $stmt->execute([':section_id' => $sectionId]);
+    $adviserRow = $stmt->fetch(PDO::FETCH_ASSOC);
     $adviserName = $adviserRow ? $adviserRow['name'] : 'No adviser assigned';
-    $stmt->close();
 
     // Get students in this section
-    $stmt = $conn->prepare("SELECT id, student_id, name, hours_completed, total_hours 
+    $stmt = $pdo->prepare("SELECT id, student_id, name, hours_completed, total_hours 
                            FROM students 
-                           WHERE section_id = ? 
+                           WHERE section_id = :section_id 
                            ORDER BY name");
-    $stmt->bind_param('i', $sectionId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $students = $res->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $stmt->execute([':section_id' => $sectionId]);
+    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     ?>
     <!DOCTYPE html>
