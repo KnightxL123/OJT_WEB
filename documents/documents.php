@@ -5,26 +5,7 @@ if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'use
     exit;
 }
 
-// Database configuration
-$host = 'localhost';
-$dbname = 'ojt'; // Changed from 'OJT' to 'ojt'
-$dbuser = 'root';
-$dbpass = '';
-
-// Create connection with error handling
-try {
-    $conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
-    }
-    
-    // Set charset to ensure proper encoding
-    $conn->set_charset("utf8mb4");
-
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
-}
+require_once '../config/DBconfig.php';
 
 // Function to escape output
 function sanitize($str) {
@@ -57,15 +38,8 @@ if (!$dept_id && !$program_id && !$section_id) {
                 GROUP BY d.id 
                 ORDER BY d.name";
         
-        $result = $conn->query($sql);
-        if (!$result) {
-            throw new Exception("Error fetching departments: " . $conn->error);
-        }
-        
-        $departments = [];
-        while ($row = $result->fetch_assoc()) {
-            $departments[] = $row;
-        }
+        $stmt = $conn->query($sql);
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
     } catch (Exception $e) {
         $error_message = $e->getMessage();
@@ -157,7 +131,6 @@ if (!$dept_id && !$program_id && !$section_id) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
@@ -165,14 +138,13 @@ if (!$dept_id && !$program_id && !$section_id) {
 if ($dept_id && !$program_id && !$section_id) {
     try {
         // Get department name
-        $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-        $stmt->bind_param('i', $dept_id);
-        $stmt->execute();
-        $stmt->bind_result($dept_name);
-        if (!$stmt->fetch()) {
+        $stmt = $conn->prepare("SELECT name FROM departments WHERE id = :dept_id");
+        $stmt->execute([':dept_id' => $dept_id]);
+        $deptRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$deptRow) {
             throw new Exception("Department not found");
         }
-        $stmt->close();
+        $dept_name = $deptRow['name'];
 
         $breadcrumbs[$dept_name] = "documents.php?department=$dept_id";
 
@@ -180,24 +152,16 @@ if ($dept_id && !$program_id && !$section_id) {
         $sql = "SELECT p.id, p.name, COUNT(s.id) as section_count 
                 FROM programs p 
                 LEFT JOIN sections s ON p.id = s.program_id 
-                WHERE p.department_id = ? 
+                WHERE p.department_id = :dept_id 
                 GROUP BY p.id 
                 ORDER BY p.name";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('i', $dept_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $programs = [];
-        while ($row = $result->fetch_assoc()) {
-            $programs[] = $row;
-        }
-        $stmt->close();
+        $stmt->execute([':dept_id' => $dept_id]);
+        $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     } catch (Exception $e) {
         $error_message = $e->getMessage();
-        $conn->close();
         header('Location: documents.php');
         exit;
     }
@@ -300,7 +264,6 @@ if ($dept_id && !$program_id && !$section_id) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
@@ -311,16 +274,19 @@ if ($dept_id && $program_id && !$section_id) {
         $sql = "SELECT d.name AS dept_name, p.name AS program_name 
                 FROM departments d 
                 JOIN programs p ON d.id = p.department_id 
-                WHERE d.id = ? AND p.id = ?";
+                WHERE d.id = :dept_id AND p.id = :program_id";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('ii', $dept_id, $program_id);
-        $stmt->execute();
-        $stmt->bind_result($dept_name, $program_name);
-        if (!$stmt->fetch()) {
+        $stmt->execute([
+            ':dept_id' => $dept_id,
+            ':program_id' => $program_id
+        ]);
+        $infoRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$infoRow) {
             throw new Exception("Program not found");
         }
-        $stmt->close();
+        $dept_name = $infoRow['dept_name'];
+        $program_name = $infoRow['program_name'];
 
         $breadcrumbs[$dept_name] = "documents.php?department=$dept_id";
         $breadcrumbs[$program_name] = "documents.php?department=$dept_id&program=$program_id";
@@ -329,24 +295,16 @@ if ($dept_id && $program_id && !$section_id) {
         $sql = "SELECT s.id, s.name, COUNT(st.id) as student_count 
                 FROM sections s 
                 LEFT JOIN students st ON s.id = st.section_id 
-                WHERE s.program_id = ? 
+                WHERE s.program_id = :program_id 
                 GROUP BY s.id 
                 ORDER BY s.name";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('i', $program_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $sections = [];
-        while ($row = $result->fetch_assoc()) {
-            $sections[] = $row;
-        }
-        $stmt->close();
+        $stmt->execute([':program_id' => $program_id]);
+        $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     } catch (Exception $e) {
         $error_message = $e->getMessage();
-        $conn->close();
         header("Location: documents.php?department=$dept_id");
         exit;
     }
@@ -449,7 +407,6 @@ if ($dept_id && $program_id && !$section_id) {
     </body>
     </html>
     <?php
-    $conn->close();
     exit;
 }
 
@@ -461,16 +418,21 @@ if ($dept_id && $program_id && $section_id) {
                 FROM departments d 
                 JOIN programs p ON d.id = p.department_id 
                 JOIN sections s ON p.id = s.program_id 
-                WHERE d.id = ? AND p.id = ? AND s.id = ?";
+                WHERE d.id = :dept_id AND p.id = :program_id AND s.id = :section_id";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('iii', $dept_id, $program_id, $section_id);
-        $stmt->execute();
-        $stmt->bind_result($dept_name, $program_name, $section_name);
-        if (!$stmt->fetch()) {
+        $stmt->execute([
+            ':dept_id' => $dept_id,
+            ':program_id' => $program_id,
+            ':section_id' => $section_id
+        ]);
+        $sectionRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$sectionRow) {
             throw new Exception("Section not found");
         }
-        $stmt->close();
+        $dept_name = $sectionRow['dept_name'];
+        $program_name = $sectionRow['program_name'];
+        $section_name = $sectionRow['section_name'];
 
         $breadcrumbs[$dept_name] = "documents.php?department=$dept_id";
         $breadcrumbs[$program_name] = "documents.php?department=$dept_id&program=$program_id";
@@ -490,23 +452,15 @@ if ($dept_id && $program_id && $section_id) {
                 COALESCE(doc.ojt_evaluation_form, 'Not Submitted') AS evaluation_status
                 FROM students st
                 LEFT JOIN documents doc ON st.id = doc.student_id
-                WHERE st.section_id = ?
+                WHERE st.section_id = :section_id
                 ORDER BY st.name";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('i', $section_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $students = [];
-        while ($row = $result->fetch_assoc()) {
-            $students[] = $row;
-        }
-        $stmt->close();
+        $stmt->execute([':section_id' => $section_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     } catch (Exception $e) {
         $error_message = $e->getMessage();
-        $conn->close();
         header("Location: documents.php?department=$dept_id&program=$program_id");
         exit;
     }
