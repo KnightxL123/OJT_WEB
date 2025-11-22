@@ -1,14 +1,7 @@
 <?php
 session_start();
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
-}
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 $department_id = intval($_POST['department_id']);
 $section_id = intval($_POST['section_id']);
@@ -25,12 +18,12 @@ $filename = basename($file['name']);
 $target_file = "$section_dir/$filename";
 
 if (move_uploaded_file($file['tmp_name'], $target_file)) {
-    $stmt = $conn->prepare("INSERT INTO documents (department_id, section_id, title, file_path) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param('iiss', $department_id, $section_id, $title, $target_file);
-    if ($stmt->execute()) {
+    try {
+        $stmt = $conn->prepare("INSERT INTO documents (department_id, section_id, title, file_path) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$department_id, $section_id, $title, $target_file]);
         echo "<p>File uploaded and saved successfully. <a href='documents.php?department=$department_id&section=$section_id'>Back</a></p>";
-    } else {
-        echo "<p>Database error: " . $conn->error . "</p>";
+    } catch (PDOException $e) {
+        echo "<p>Database error: " . $e->getMessage() . "</p>";
     }
 } else {
     echo "<p>Failed to upload file.</p>";

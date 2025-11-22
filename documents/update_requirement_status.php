@@ -1,26 +1,16 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'coordinator') {
     header('Location: login.php');
     exit;
 }
 
-// Database connection
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
 header('Content-Type: application/json');
 
 try {
-    $conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
-    }
-    
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['student_id'])) {
         $student_id = intval($_POST['student_id']);
         $action = $_POST['action']; // 'approve' or 'reject'
@@ -30,14 +20,12 @@ try {
         
         // Check if student exists
         $stmt = $conn->prepare("SELECT id FROM students WHERE id = ?");
-        $stmt->bind_param("i", $student_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $stmt->execute([$student_id]);
+        $result = $stmt->fetch();
         
-        if ($result->num_rows === 0) {
+        if (!$result) {
             throw new Exception("Student not found");
         }
-        $stmt->close();
         
         // Update or insert document status
         $sql = "INSERT INTO student_documents (
@@ -60,18 +48,10 @@ try {
                     moa_status = VALUES(moa_status)";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('isssssss', 
-            $student_id, $status, $status, 
-            $status, $status, $status, 
-            $status, $status);
+        $stmt->execute([$student_id, $status, $status, $status, $status, $status, $status, $status]);
         
-        if ($stmt->execute()) {
-            echo json_encode(['success' => true, 'message' => 'Requirements updated successfully']);
-        } else {
-            throw new Exception("Error updating requirements: " . $conn->error);
-        }
+        echo json_encode(['success' => true, 'message' => 'Requirements updated successfully']);
         
-        $stmt->close();
         exit;
     }
     

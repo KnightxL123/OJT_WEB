@@ -1,5 +1,7 @@
 <?php
 session_start();
+require_once __DIR__ . '/../../paths.php';
+require_once __DIR__ . '/../../config/DBconfig.php';
 
 // Check if the user is logged in and has the correct role
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'user') {
@@ -8,27 +10,19 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'user') {
 }
 
 // Get the document ID from the URL
-$doc_id = isset($_GET['doc_id']) ? $_GET['doc_id'] : 0;
+$doc_id = isset($_GET['doc_id']) ? intval($_GET['doc_id']) : 0;
 
 if ($doc_id > 0) {
-    // Connect to the database
-    $host = 'localhost';
-    $dbname = 'OJT';
-    $dbuser = 'root';
-    $dbpass = '';
-    $conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-    if ($conn->connect_error) {
-        die('Database connection failed: ' . $conn->connect_error);
+    // Fetch the document details from the database
+    try {
+        $stmt = $conn->prepare("SELECT * FROM documents WHERE id = ?");
+        $stmt->execute([$doc_id]);
+        $row = $stmt->fetch();
+    } catch (PDOException $e) {
+        die('Database error: ' . $e->getMessage());
     }
 
-    // Fetch the document details from the database
-    $sql = "SELECT * FROM documents WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $doc_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($row = $result->fetch_assoc()) {
+    if ($row) {
         $file_path = $row['file_path']; // Assuming you store the path to the file in the 'file_path' column
 
         // Check if the file exists
@@ -47,8 +41,6 @@ if ($doc_id > 0) {
     } else {
         echo "Document not found.";
     }
-
-    $conn->close();
 } else {
     echo "Invalid document ID.";
 }

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: ../../auth/login.php?error=' . urlencode("Please log in to access the dashboard."));
@@ -10,16 +11,6 @@ if (!isset($_SESSION['username'])) {
 if ($_SESSION['role'] !== 'coordinator') {
     header('Location: ../../auth/login.php?error=' . urlencode("Unauthorized access. Coordinator role required."));
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
 }
 
 // Get coordinator's department

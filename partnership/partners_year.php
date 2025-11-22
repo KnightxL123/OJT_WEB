@@ -1,17 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'user'])) {
     header('Location: ../auth/login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
 }
 
 function escape($str) {
@@ -25,22 +18,19 @@ if (!isset($_GET['year']) || !is_numeric($_GET['year'])) {
 $year = (int)$_GET['year'];
 
 // Fetch partners (departments) for the selected year
-$stmt = $conn->prepare("
-    SELECT id, name, logo_url, female_count, male_count 
-    FROM partners 
-    WHERE year = ?
-    ORDER BY name
-");
-$stmt->bind_param('i', $year);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$partners = [];
-while ($row = $result->fetch_assoc()) {
-    $partners[] = $row;
+try {
+    $stmt = $conn->prepare("
+        SELECT id, name, logo_url, female_count, male_count 
+        FROM partners 
+        WHERE year = ?
+        ORDER BY name
+    ");
+    $stmt->execute([$year]);
+    $partners = $stmt->fetchAll();
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
 }
 
-$stmt->close();
 ?>
 
 <!DOCTYPE html>

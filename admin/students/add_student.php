@@ -1,30 +1,23 @@
 <?php
 session_start();
+require_once __DIR__ . '/../../paths.php';
+require_once __DIR__ . '/../../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
 
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
-}
-
 $message = '';
-$sections = [];
 
 // Get all sections for the dropdown
-$result = $conn->query("SELECT s.id, CONCAT(d.name, ' - ', s.name) AS section_full
-                        FROM sections s
-                        JOIN departments d ON s.department_id = d.id
-                        ORDER BY d.name, s.name");
-while ($row = $result->fetch_assoc()) {
-    $sections[] = $row;
+try {
+    $stmt = $conn->query("SELECT s.id, CONCAT(d.name, ' - ', s.name) AS section_full
+                          FROM sections s
+                          JOIN departments d ON s.department_id = d.id
+                          ORDER BY d.name, s.name");
+    $sections = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $sections = [];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -34,18 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($section_id === 0 || $student_name === '') {
         $message = 'Please select a section and enter the student name.';
     } else {
-        $stmt = $conn->prepare("INSERT INTO students (section_id, name) VALUES (?, ?)");
-        $stmt->bind_param('is', $section_id, $student_name);
-        if ($stmt->execute()) {
+        try {
+            $stmt = $conn->prepare("INSERT INTO students (section_id, name) VALUES (?, ?)");
+            $stmt->execute([$section_id, $student_name]);
             $message = 'Student added successfully.';
-        } else {
-            $message = 'Error adding student: ' . $conn->error;
+        } catch (PDOException $e) {
+            $message = 'Error adding student: ' . $e->getMessage();
         }
-        $stmt->close();
     }
 }
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>

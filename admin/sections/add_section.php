@@ -1,27 +1,20 @@
 <?php
 session_start();
+require_once __DIR__ . '/../../paths.php';
+require_once __DIR__ . '/../../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
 
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
-}
-
 $message = '';
-$departments = [];
 
 // Get all departments for the dropdown
-$result = $conn->query("SELECT id, name FROM departments ORDER BY name");
-while ($row = $result->fetch_assoc()) {
-    $departments[] = $row;
+try {
+    $stmt = $conn->query("SELECT id, name FROM departments ORDER BY name");
+    $departments = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $departments = [];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,18 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($department_id === 0 || $section_name === '') {
         $message = 'Please select a department and enter a section name.';
     } else {
-        $stmt = $conn->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)");
-        $stmt->bind_param('is', $department_id, $section_name);
-        if ($stmt->execute()) {
+        try {
+            $stmt = $conn->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)");
+            $stmt->execute([$department_id, $section_name]);
             $message = 'Section added successfully.';
-        } else {
-            $message = 'Error adding section: ' . $conn->error;
+        } catch (PDOException $e) {
+            $message = 'Error adding section: ' . $e->getMessage();
         }
-        $stmt->close();
     }
 }
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>

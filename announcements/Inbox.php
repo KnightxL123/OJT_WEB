@@ -1,23 +1,18 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
 
-$dbHost = 'localhost';
-$dbName = 'OJT';
-$dbUser = 'root';
-$dbPass = '';
-
-$conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
+try {
+    $stmt = $conn->query("SELECT * FROM announcements ORDER BY created_at DESC");
+    $announcements = $stmt->fetchAll();
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
 }
-
-$res = $conn->query("SELECT * FROM announcements ORDER BY created_at DESC");
-$announcements = $res->fetch_all(MYSQLI_ASSOC);
-$conn->close();
 
 function escape($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');

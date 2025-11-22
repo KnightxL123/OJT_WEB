@@ -1,36 +1,30 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username'])) {
     header('Location: login.php');
     exit;
 }
 
-// Database connection
-$host = 'localhost';
-$dbname = 'OJT';
-$user = 'root';
-$pass = '';
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die('Connection failed: '.$conn->connect_error);
-}
-
 // Fetch user info from DB
-$stmt = $conn->prepare('SELECT username, email, role FROM users WHERE username = ? LIMIT 1');
-$stmt->bind_param('s', $_SESSION['username']);
-$stmt->execute();
-$stmt->bind_result($username, $email, $role);
-if(!$stmt->fetch()) {
-    // User not found, logout for safety
-    $stmt->close();
-    session_unset();
-    session_destroy();
-    header('Location: login.php');
-    exit;
+try {
+    $stmt = $conn->prepare('SELECT username, email, role FROM users WHERE username = ? LIMIT 1');
+    $stmt->execute([$_SESSION['username']]);
+    $row = $stmt->fetch();
+    if(!$row) {
+        // User not found, logout for safety
+        session_unset();
+        session_destroy();
+        header('Location: login.php');
+        exit;
+    }
+    $username = $row['username'];
+    $email = $row['email'];
+    $role = $row['role'];
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
 }
-$stmt->close();
-$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">

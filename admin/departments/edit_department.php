@@ -5,15 +5,7 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     redirect_to('auth/login.php');
 }
 
-try {
-    $conn = new mysqli("localhost", "root", "", "ojt");
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
-}
+require_once __DIR__ . '/../../config/DBconfig.php';
 
 $error = '';
 $success = '';
@@ -30,13 +22,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_department'])) 
         }
         
         $stmt = $conn->prepare("UPDATE departments SET name = ?, status = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $name, $status, $id);
-        
-        if ($stmt->execute()) {
-            $success = "Department updated successfully!";
-        } else {
-            throw new Exception("Error updating department: " . $stmt->error);
-        }
+        $stmt->execute([$name, $status, $id]);
+        $success = "Department updated successfully!";
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
@@ -46,8 +33,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_department'])) 
 $department = null;
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $result = $conn->query("SELECT * FROM departments WHERE id = $id");
-    $department = $result->fetch_assoc();
+    try {
+        $stmt = $conn->prepare("SELECT * FROM departments WHERE id = ?");
+        $stmt->execute([$id]);
+        $department = $stmt->fetch();
+    } catch (PDOException $e) {
+        die("Database error: " . $e->getMessage());
+    }
 }
 
 if (!$department) {

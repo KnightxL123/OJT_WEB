@@ -1,6 +1,7 @@
 <?php
 session_start();
-$conn = new mysqli('localhost', 'root', '', 'ojt');
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 // Check if admin is logged in
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
@@ -9,17 +10,20 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
 }
 
 // Get all announcements sent by this admin
-$stmt = $conn->prepare("SELECT a.id, a.title, a.message, a.created_at, 
-    COUNT(ar.id) AS total_sent,
-    SUM(CASE WHEN ar.is_read = 1 THEN 1 ELSE 0 END) AS total_read
-    FROM announcements a 
-    LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id
-    WHERE a.sender_id = ?
-    GROUP BY a.id
-    ORDER BY a.created_at DESC");
-$stmt->bind_param('i', $_SESSION['user_id']);
-$stmt->execute();
-$res = $stmt->get_result();
+try {
+    $stmt = $conn->prepare("SELECT a.id, a.title, a.message, a.created_at, 
+        COUNT(ar.id) AS total_sent,
+        SUM(CASE WHEN ar.is_read = 1 THEN 1 ELSE 0 END) AS total_read
+        FROM announcements a 
+        LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id
+        WHERE a.sender_id = ?
+        GROUP BY a.id
+        ORDER BY a.created_at DESC");
+    $stmt->execute([$_SESSION['user_id']]);
+    $res = $stmt->fetchAll();
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>

@@ -1,18 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../../paths.php';
+require_once __DIR__ . '/../../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
 }
 
 $message = '';
@@ -23,20 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($department_name === '') {
         $message = 'Department name is required.';
     } else {
-        $stmt = $conn->prepare("INSERT INTO departments (name) VALUES (?)");
-        $stmt->bind_param('s', $department_name);
-
-        if ($stmt->execute()) {
+        try {
+            $stmt = $conn->prepare("INSERT INTO departments (name) VALUES (?)");
+            $stmt->execute([$department_name]);
             $message = 'Department added successfully.';
-        } else {
-            $message = 'Error adding department: ' . $conn->error;
+        } catch (PDOException $e) {
+            $message = 'Error adding department: ' . $e->getMessage();
         }
-
-        $stmt->close();
     }
 }
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>

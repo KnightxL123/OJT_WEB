@@ -1,18 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'OJT';
-$user = 'root';
-$pass = '';
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die("Database connection failed: " . $conn->connect_error);
 }
 
 $message = '';
@@ -21,14 +13,13 @@ $editData = null; // Initialize the variable
 // Delete partner
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
-    $stmt = $conn->prepare("DELETE FROM partners WHERE id = ?");
-    $stmt->bind_param('i', $delete_id);
-    if ($stmt->execute()) {
+    try {
+        $stmt = $conn->prepare("DELETE FROM partners WHERE id = ?");
+        $stmt->execute([$delete_id]);
         $message = "Partner deleted successfully.";
-    } else {
+    } catch (PDOException $e) {
         $message = "Error deleting partner.";
     }
-    $stmt->close();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

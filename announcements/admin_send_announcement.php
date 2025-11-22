@@ -1,17 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../auth/login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->error);
 }
 
 function escape($str) {
@@ -25,35 +18,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_announcement']))
     $recipient_type = $_POST['recipient_type'];
     
     if (!empty($title) && !empty($message)) {
-        // Insert announcement
-        $stmt = $conn->prepare("INSERT INTO announcements (sender_id, title, message) VALUES (?, ?, ?)");
-        $stmt->bind_param('iss', $_SESSION['user_id'], $title, $message);
-        
-        if ($stmt->execute()) {
-            $announcement_id = $stmt->insert_id;
-            $stmt->close();
+        try {
+            // Insert announcement
+            $stmt = $conn->prepare("INSERT INTO announcements (sender_id, title, message) VALUES (?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $title, $message]);
+            $announcement_id = $conn->lastInsertId();
             
             // Handle recipients based on type
             if ($recipient_type === 'all') {
                 // Send to all users
                 $stmt = $conn->prepare("INSERT INTO announcement_recipients (announcement_id, recipient_id) 
                                       SELECT ?, id FROM users WHERE role = 'user'");
-                $stmt->bind_param('i', $announcement_id);
-                $stmt->execute();
+                $stmt->execute([$announcement_id]);
             } elseif ($recipient_type === 'department') {
                 // Send to specific department
                 $dept_id = $_POST['department_id'];
                 $stmt = $conn->prepare("INSERT INTO announcement_recipients (announcement_id, recipient_id) 
                                       SELECT ?, u.id FROM users u 
                                       WHERE u.role = 'user' AND u.department_id = ?");
-                $stmt->bind_param('ii', $announcement_id, $dept_id);
-                $stmt->execute();
+                $stmt->execute([$announcement_id, $dept_id]);
             }
-            $stmt->close();
             
             $success_message = "Announcement sent successfully!";
-        } else {
-            $error_message = "Error sending announcement: " . $conn->error;
+        } catch (PDOException $e) {
+            $error_message = "Error sending announcement: " . $e->getMessage();
         }
     } else {
         $error_message = "Please fill in all fields.";
@@ -61,26 +49,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_announcement']))
 }
 
 // Get sent announcements
-$sent_announcements = [];
-$result = $conn->query("
-    SELECT a.*, COUNT(ar.id) as recipient_count 
-    FROM announcements a 
-    LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id 
-    WHERE a.sender_id = {$_SESSION['user_id']} 
-    GROUP BY a.id 
-    ORDER BY a.created_at DESC
-");
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $sent_announcements[] = $row;
-    }
+try {
+    $stmt = $conn->prepare("
+        SELECT a.*, COUNT(ar.id) as recipient_count 
+        FROM announcements a 
+        LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id 
+        WHERE a.sender_id = ? 
+        GROUP BY a.id 
+        ORDER BY a.created_at DESC
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+    $sent_announcements = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $sent_announcements = [];
 }
 
 // Get departments for targeting
-$departments = [];
-$dept_result = $conn->query("SELECT id, name FROM departments WHERE status = 'active'");
-while ($row = $dept_result->fetch_assoc()) {
-    $departments[] = $row;
+try {
+    $stmt = $conn->query("SELECT id, name FROM departments WHERE status = 'active'");
+    $departments = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $departments = [];
 }
 ?>
 
@@ -606,7 +595,3 @@ while ($row = $dept_result->fetch_assoc()) {
 </script>
 </body>
 </html>
-
-<?php
-$conn->close();
-?>

@@ -5,24 +5,16 @@ if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'use
     exit;
 }
 
-$host = 'localhost'; 
-$dbname = 'OJT'; 
-$dbuser = 'root'; 
-$dbpass = ''; 
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname); 
-if ($conn->connect_error) { 
-    die('Database connection failed: ' . $conn->connect_error); 
-} 
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php'; 
 
 // Get distinct partnership years from partners table 
-$years = []; 
-$res = $conn->query("SELECT DISTINCT year FROM partners ORDER BY year"); 
-if ($res) { 
-    while ($row = $res->fetch_assoc()) { 
-        $years[] = $row['year']; 
-    } 
+try {
+    $stmt = $conn->query("SELECT DISTINCT year FROM partners ORDER BY year"); 
+    $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $years = [];
 } 
-$conn->close(); 
 
 function escape($str) { 
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8'); 

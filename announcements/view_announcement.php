@@ -1,38 +1,30 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
 
-$dbHost = 'localhost';
-$dbName = 'OJT';
-$dbUser = 'root';
-$dbPass = '';
-
-$conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
-}
-
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-$stmt = $conn->prepare("SELECT * FROM announcements WHERE id=?");
-$stmt->bind_param('i', $id);
-$stmt->execute();
-$res = $stmt->get_result();
-$announcement = $res->fetch_assoc();
+try {
+    $stmt = $conn->prepare("SELECT * FROM announcements WHERE id=?");
+    $stmt->execute([$id]);
+    $announcement = $stmt->fetch();
 
-if ($announcement) {
-    // Mark as read
-    $conn->query("UPDATE announcements SET is_read=1 WHERE id=$id");
-} else {
-    $conn->close();
-    header('Location: Inbox.php');
-    exit;
+    if ($announcement) {
+        // Mark as read
+        $stmt = $conn->prepare("UPDATE announcements SET is_read=1 WHERE id=?");
+        $stmt->execute([$id]);
+    } else {
+        header('Location: Inbox.php');
+        exit;
+    }
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
 }
-
-$conn->close();
 
 function escape($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');

@@ -1,15 +1,20 @@
 <?php
 session_start();
-$conn = new mysqli('localhost', 'root', '', 'OJT');
+require_once __DIR__ . '/../../paths.php';
+require_once __DIR__ . '/../../config/DBconfig.php';
 
 // Fetch student documents
-$students = $conn->query("SELECT d.*, s.student_name FROM documents d JOIN students s ON d.student_id = s.id");
+try {
+    $students = $conn->query("SELECT d.*, s.student_name FROM documents d JOIN students s ON d.student_id = s.id");
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
+}
 
 echo "<h1>Documents Overview</h1>";
 echo "<table border='1'>";
 echo "<tr><th>Student Name</th><th>Certificate of Completion</th><th>Daily Time Record</th><th>Performance Evaluation</th><th>Other Documents</th></tr>";
 
-while ($student = $students->fetch_assoc()) {
+while ($student = $students->fetch()) {
     echo "<tr>";
     echo "<td>" . htmlspecialchars($student['student_name']) . "</td>";
     

@@ -5,15 +5,7 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     redirect_to('auth/login.php');
 }
 
-try {
-    $conn = new mysqli("localhost", "root", "", "ojt");
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
-}
+require_once __DIR__ . '/../../config/DBconfig.php';
 
 $error = '';
 $success = '';
@@ -31,13 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_program'])) {
         }
         
         $stmt = $conn->prepare("UPDATE programs SET name = ?, department_id = ?, logo_url = ? WHERE id = ?");
-        $stmt->bind_param("sisi", $name, $department_id, $logo_url, $id);
-        
-        if ($stmt->execute()) {
-            $success = "Program updated successfully!";
-        } else {
-            throw new Exception("Error updating program: " . $stmt->error);
-        }
+        $stmt->execute([$name, $department_id, $logo_url, $id]);
+        $success = "Program updated successfully!";
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
@@ -48,10 +35,16 @@ $program = null;
 $departments = [];
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $result = $conn->query("SELECT * FROM programs WHERE id = $id");
-    $program = $result->fetch_assoc();
-    
-    $departments = $conn->query("SELECT * FROM departments ORDER BY name ASC");
+    try {
+        $stmt = $conn->prepare("SELECT * FROM programs WHERE id = ?");
+        $stmt->execute([$id]);
+        $program = $stmt->fetch();
+        
+        $stmt = $conn->query("SELECT * FROM departments ORDER BY name ASC");
+        $departments = $stmt->fetchAll();
+    } catch (Exception $e) {
+        die("Database error: " . $e->getMessage());
+    }
 }
 
 if (!$program) {
@@ -89,11 +82,11 @@ if (!$program) {
             <div class="mb-3">
                 <label for="department_id" class="form-label">Department</label>
                 <select class="form-select" id="department_id" name="department_id" required>
-                    <?php while ($dept = $departments->fetch_assoc()): ?>
+                    <?php foreach ($departments as $dept): ?>
                         <option value="<?= $dept['id'] ?>" <?= $dept['id'] == $program['department_id'] ? 'selected' : '' ?>>
                             <?= htmlspecialchars($dept['name']) ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             

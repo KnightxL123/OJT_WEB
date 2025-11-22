@@ -1,17 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'coordinator') {
     header('Location: ../auth/login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->error);
 }
 
 function escape($str) {
@@ -27,13 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_announcement']))
     $message = trim($_POST['message']);
     
     if (!empty($title) && !empty($message)) {
-        // Insert announcement
-        $stmt = $conn->prepare("INSERT INTO announcements (sender_id, title, message) VALUES (?, ?, ?)");
-        $stmt->bind_param('iss', $_SESSION['user_id'], $title, $message);
-        
-        if ($stmt->execute()) {
-            $announcement_id = $stmt->insert_id;
-            $stmt->close();
+        try {
+            // Insert announcement
+            $stmt = $conn->prepare("INSERT INTO announcements (sender_id, title, message) VALUES (?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $title, $message]);
+            $announcement_id = $conn->lastInsertId();
             
             // Send to all students in coordinator's department
             $stmt = $conn->prepare("
@@ -44,13 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_announcement']))
                 INNER JOIN programs p ON sec.program_id = p.id 
                 WHERE p.department_id = ?
             ");
-            $stmt->bind_param('ii', $announcement_id, $coordinator_dept);
-            $stmt->execute();
-            $stmt->close();
+            $stmt->execute([$announcement_id, $coordinator_dept]);
             
             $success_message = "Announcement sent successfully to all students in your department!";
-        } else {
-            $error_message = "Error sending announcement: " . $conn->error;
+        } catch (PDOException $e) {
+            $error_message = "Error sending announcement: " . $e->getMessage();
         }
     } else {
         $error_message = "Please fill in all fields.";
@@ -58,28 +47,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_announcement']))
 }
 
 // Get sent announcements by this coordinator
-$sent_announcements = [];
-$result = $conn->query("
-    SELECT a.*, COUNT(ar.id) as recipient_count 
-    FROM announcements a 
-    LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id 
-    WHERE a.sender_id = {$_SESSION['user_id']} 
-    GROUP BY a.id 
-    ORDER BY a.created_at DESC
-");
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $sent_announcements[] = $row;
-    }
+try {
+    $stmt = $conn->prepare("
+        SELECT a.*, COUNT(ar.id) as recipient_count 
+        FROM announcements a 
+        LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id 
+        WHERE a.sender_id = ? 
+        GROUP BY a.id 
+        ORDER BY a.created_at DESC
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+    $sent_announcements = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $sent_announcements = [];
 }
 
 // Get coordinator's department info
-$dept_result = $conn->query("
-    SELECT d.name 
-    FROM departments d 
-    WHERE d.id = $coordinator_dept
-");
-$department = $dept_result->fetch_assoc();
+try {
+    $stmt = $conn->prepare("SELECT d.name FROM departments d WHERE d.id = ?");
+    $stmt->execute([$coordinator_dept]);
+    $department = $stmt->fetch();
+} catch (PDOException $e) {
+    $department = ['name' => 'Unknown'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -589,7 +579,3 @@ $department = $dept_result->fetch_assoc();
 </script>
 </body>
 </html>
-
-<?php
-$conn->close();
-?>

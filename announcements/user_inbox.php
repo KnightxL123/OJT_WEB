@@ -1,15 +1,12 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 // Simple check for login
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: login.php');
     exit();
-}
-
-$conn = new mysqli('localhost', 'root', '', 'OJT');
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
 }
 
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -25,22 +22,23 @@ $sql_count = "SELECT COUNT(*) AS total FROM announcements a
               JOIN announcement_recipients ar ON a.id = ar.announcement_id 
               WHERE ar.recipient_id = ?";
 $params = [$_SESSION['user_id']];
-$types = "i";
 
 if ($search !== '') {
     $sql_count .= " AND (a.title LIKE ? OR a.message LIKE ?)";
     $like_search = "%$search%";
     $params[] = $like_search;
     $params[] = $like_search;
-    $types .= "ss";
 }
 
-$stmt_count = $conn->prepare($sql_count);
-$stmt_count->bind_param($types, ...$params);
-$stmt_count->execute();
-$result_count = $stmt_count->get_result()->fetch_assoc();
-$total = $result_count['total'];
-$total_pages = ceil($total / $limit);
+try {
+    $stmt_count = $conn->prepare($sql_count);
+    $stmt_count->execute($params);
+    $result_count = $stmt_count->fetch();
+    $total = $result_count['total'];
+    $total_pages = ceil($total / $limit);
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
+}
 
 // Prepare query for fetching announcements
 $sql = "SELECT a.id, a.title, a.message, ar.is_read, a.created_at 
@@ -49,31 +47,33 @@ $sql = "SELECT a.id, a.title, a.message, ar.is_read, a.created_at
         WHERE ar.recipient_id = ?";
 
 $params = [$_SESSION['user_id']];
-$types = "i";
 
 if ($search !== '') {
     $sql .= " AND (a.title LIKE ? OR a.message LIKE ?)";
     $params[] = $like_search;
     $params[] = $like_search;
-    $types .= "ss";
 }
 
 $sql .= " ORDER BY a.created_at $sort_order LIMIT ? OFFSET ?";
 $params[] = $limit;
 $params[] = $offset;
-$types .= "ii";
 
-$stmt = $conn->prepare($sql);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$announcements = $stmt->get_result();
+try {
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
+}
 
 // Mark announcement as read
 if (isset($_POST['mark_read'])) {
     $announcement_id = intval($_POST['announcement_id']);
-    $update_stmt = $conn->prepare("UPDATE announcement_recipients SET is_read = 1 WHERE announcement_id = ? AND recipient_id = ?");
-    $update_stmt->bind_param("ii", $announcement_id, $_SESSION['user_id']);
-    $update_stmt->execute();
+    try {
+        $update_stmt = $conn->prepare("UPDATE announcement_recipients SET is_read = 1 WHERE announcement_id = ? AND recipient_id = ?");
+        $update_stmt->execute([$announcement_id, $_SESSION['user_id']]);
+    } catch (PDOException $e) {
+        die('Database error: ' . $e->getMessage());
+    }
     header("Location: user_inbox.php?" . http_build_query($_GET));
     exit();
 }
@@ -281,10 +281,10 @@ if (isset($_POST['mark_read'])) {
     <main class="content">
         <h2>Inbox</h2>
 
-        <?php if ($announcements->num_rows === 0): ?>
+        <?php if ($stmt->rowCount() === 0): ?>
             <p>No announcements found.</p>
         <?php else: ?>
-            <?php while ($row = $announcements->fetch_assoc()): ?>
+            <?php while ($row = $stmt->fetch()): ?>
                 <div class="announcement <?php echo $row['is_read'] ? '' : 'unread'; ?>">
                     <h5><?php echo htmlspecialchars($row['title']); ?></h5>
                     <p><?php echo nl2br(htmlspecialchars($row['message'])); ?></p>
@@ -319,12 +319,23 @@ if (isset($_POST['mark_read'])) {
                         <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $page + 1])); ?>">Next &raquo;</a>
                     <?php endif; ?>
                 </div>
-            </nav>
-        <?php endif; ?>
-    </main>
-</div>
 
-</body>
-</html>
-<?php
-$stmt->close();
+                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                            <?php if ($i == $page): ?>
+                                <span class="active"><?php echo $i; ?></span>
+                            <?php else: ?>
+                                <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $i])); ?>"><?php echo $i; ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($page < $total_pages): ?>
+                            <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $page + 1])); ?>">Next &raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                </nav>
+            <?php endif; ?>
+        </main>
+    </div>
+
+    </body>
+    </html>

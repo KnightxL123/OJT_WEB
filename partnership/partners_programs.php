@@ -1,17 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'user'])) {
     header('Location: ../auth/login.php');
     exit;
-}
-
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-$conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->error);
 }
 
 function escape($str) {
@@ -25,18 +18,16 @@ if (!isset($_GET['partner_id']) || !is_numeric($_GET['partner_id'])) {
 $partner_id = (int)$_GET['partner_id'];
 
 // Get partner info
-$stmt = $conn->prepare("SELECT id, name, logo_url FROM partners WHERE id = ?");
-if (!$stmt) {
-    die("Error preparing partner statement: " . $conn->error);
+try {
+    $stmt = $conn->prepare("SELECT id, name, logo_url FROM partners WHERE id = ?");
+    $stmt->execute([$partner_id]);
+    $partner = $stmt->fetch();
+    if (!$partner) {
+        die("Partner not found.");
+    }
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
 }
-$stmt->bind_param('i', $partner_id);
-$stmt->execute();
-$partnerResult = $stmt->get_result();
-if ($partnerResult->num_rows === 0) {
-    die("Partner not found.");
-}
-$partner = $partnerResult->fetch_assoc();
-$stmt->close();
 
 // Debug: Check what partner name we have
 $partner_name = $partner['name'];

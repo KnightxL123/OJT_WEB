@@ -1,24 +1,14 @@
 <?php
 session_start();
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
 
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'coordinator') {
     header('Location: login.php');
     exit;
 }
 
-// Database connection
-$host = 'localhost';
-$dbname = 'OJT';
-$dbuser = 'root';
-$dbpass = '';
-
 try {
-    $conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
-    }
-    
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['doc_id'])) {
         $doc_id = intval($_POST['doc_id']);
         $action = $_POST['action']; // 'approve' or 'reject'
@@ -40,30 +30,22 @@ try {
                     WHERE id = ?";
             
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param('sssssssi', 
-                $status, $status, $status, 
-                $status, $status, $status, 
-                $status, $doc_id);
+            $stmt->execute([$status, $status, $status, $status, $status, $status, $status, $doc_id]);
         } else {
             // Update specific document type
             $sql = "UPDATE documents SET $document_type = ? WHERE id = ?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param('si', $status, $doc_id);
+            $stmt->execute([$status, $doc_id]);
         }
         
-        if ($stmt->execute()) {
-            $_SESSION['success'] = "Documents updated successfully";
-        } else {
-            $_SESSION['error'] = "Error updating documents: " . $conn->error;
-        }
-        
-        $stmt->close();
+        $_SESSION['success'] = "Documents updated successfully";
         
         // Redirect back to the previous page
         header('Location: ' . $_SERVER['HTTP_REFERER']);
         exit;
     }
     
+} catch (PDOException $e) {
 } catch (Exception $e) {
     $_SESSION['error'] = "Error: " . $e->getMessage();
     header('Location: ' . $_SERVER['HTTP_REFERER']);

@@ -1,14 +1,12 @@
 <?php
+require_once __DIR__ . '/../paths.php';
+require_once __DIR__ . '/../config/DBconfig.php';
+
 $dept_id = isset($_GET['department']) ? intval($_GET['department']) : null;
 $section_id = isset($_GET['section']) ? intval($_GET['section']) : null;
 
 if (!$dept_id || !$section_id) {
     die("Invalid request: Missing department or section");
-}
-
-$conn = new mysqli('localhost', 'root', '', 'OJT');
-if ($conn->connect_error) {
-    die('Database connection failed: ' . $conn->connect_error);
 }
 
 // Fetch documents filtered by section and department using JOINs
@@ -19,21 +17,20 @@ $sql = "
     JOIN sections sec ON s.section_id = sec.id
     WHERE sec.id = ? AND sec.department_id = ?
 ";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ii", $section_id, $dept_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-// Prepare CSV export
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename="export_documents.csv"');
-$output = fopen('php://output', 'w');
-
-// Output headers
-fputcsv($output, ['Document ID', 'Student Name', 'Last Updated', 'Status']);
-
-// Output rows
-while ($row = $result->fetch_assoc()) {
+try {
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$section_id, $dept_id]);
+    
+    // Prepare CSV export
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="export_documents.csv"');
+    $output = fopen('php://output', 'w');
+    
+    // Output headers
+    fputcsv($output, ['Document ID', 'Student Name', 'Last Updated', 'Status']);
+    
+    // Output rows
+    while ($row = $stmt->fetch()) {
     fputcsv($output, [
         $row['id'],
         $row['student_name'],
@@ -42,8 +39,9 @@ while ($row = $result->fetch_assoc()) {
     ]);
 }
 
-fclose($output);
-$stmt->close();
-$conn->close();
+    fclose($output);
+} catch (PDOException $e) {
+    die('Database error: ' . $e->getMessage());
+}
 exit;
 ?>
