@@ -18,18 +18,12 @@ $coordinator_id = $_SESSION['user_id'] ?? null;
 $department_id = null;
 
 if ($coordinator_id) {
-    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = ?");
-    if (!$stmt) {
-        die("Prepare failed: " . $conn->error);
-    }
-    $stmt->bind_param("i", $coordinator_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
+    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = :id");
+    $stmt->execute([':id' => $coordinator_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
         $department_id = $row['department_id'];
     }
-    $stmt->close();
 }
 
 if (!$department_id) {
@@ -38,31 +32,18 @@ if (!$department_id) {
 
 // Get department name
 $department_name = '';
-$stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-if (!$stmt) {
-    die("Prepare failed: " . $conn->error);
-}
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
+$stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
+$stmt->execute([':id' => $department_id]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($row) {
     $department_name = $row['name'];
 }
-$stmt->close();
 
 // Get partners
 $partners = [];
-$stmt = $conn->prepare("SELECT id, name, year, website_url FROM partners");
+$stmt = $conn->query("SELECT id, name, year, website_url FROM partners");
 if ($stmt) {
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result) {
-        while ($row = $result->fetch_assoc()) {
-            $partners[] = $row;
-        }
-    }
-    $stmt->close();
+    $partners = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function sanitize($str) {
@@ -301,7 +282,3 @@ function sanitize($str) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
-<?php
-$conn->close();
-?>

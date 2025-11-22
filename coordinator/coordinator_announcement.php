@@ -18,15 +18,12 @@ $coordinator_id = $_SESSION['user_id'] ?? null;
 $department_id = null;
 
 if ($coordinator_id) {
-    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = ?");
-    $stmt->bind_param("i", $coordinator_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
+    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = :id");
+    $stmt->execute([':id' => $coordinator_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
         $department_id = $row['department_id'];
     }
-    $stmt->close();
 }
 
 if (!$department_id) {
@@ -35,15 +32,12 @@ if (!$department_id) {
 
 // Get department name
 $department_name = '';
-$stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-$stmt->bind_param("i", $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
+$stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
+$stmt->execute([':id' => $department_id]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($row) {
     $department_name = $row['name'];
 }
-$stmt->close();
 
 // Get announcements sent by admin to this coordinator or their department
 $announcements = [];
@@ -58,15 +52,15 @@ $stmt = $conn->prepare("
         ar.is_read
     FROM announcements a 
     JOIN users u ON a.sender_id = u.id
-    LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id AND ar.recipient_id = ?
+    LEFT JOIN announcement_recipients ar ON a.id = ar.announcement_id AND ar.recipient_id = :coord_id
     WHERE u.role = 'admin' 
     AND (
-        ar.recipient_id = ? 
+        ar.recipient_id = :coord_id2 
         OR EXISTS (
             SELECT 1 FROM announcement_recipients ar2 
             WHERE ar2.announcement_id = a.id 
             AND ar2.recipient_id IN (
-                SELECT id FROM users WHERE department_id = ?
+                SELECT id FROM users WHERE department_id = :dept_id
             )
         )
         OR EXISTS (
@@ -77,27 +71,28 @@ $stmt = $conn->prepare("
     )
     ORDER BY a.created_at DESC
 ");
-$stmt->bind_param("iii", $coordinator_id, $coordinator_id, $department_id);
-$stmt->execute();
-$result = $stmt->get_result();
+$stmt->execute([
+    ':coord_id' => $coordinator_id,
+    ':coord_id2' => $coordinator_id,
+    ':dept_id' => $department_id,
+]);
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $announcements[] = $row;
-    }
+    $announcements = $result;
 }
-$stmt->close();
 
 // Mark announcement as read when viewed
 if (isset($_GET['view']) && is_numeric($_GET['view'])) {
-    $announcement_id = $_GET['view'];
+    $announcement_id = (int) $_GET['view'];
     $stmt = $conn->prepare("
         INSERT INTO announcement_recipients (announcement_id, recipient_id, is_read) 
-        VALUES (?, ?, 1) 
-        ON DUPLICATE KEY UPDATE is_read = 1
+        VALUES (:announcement_id, :recipient_id, 1) 
+        ON CONFLICT (announcement_id, recipient_id) DO UPDATE SET is_read = EXCLUDED.is_read
     ");
-    $stmt->bind_param("ii", $announcement_id, $coordinator_id);
-    $stmt->execute();
-    $stmt->close();
+    $stmt->execute([
+        ':announcement_id' => $announcement_id,
+        ':recipient_id' => $coordinator_id,
+    ]);
 }
 
 function sanitize($str) {
@@ -110,16 +105,13 @@ $stmt = $conn->prepare("
     SELECT COUNT(*) as unread_count 
     FROM announcements a 
     JOIN announcement_recipients ar ON a.id = ar.announcement_id 
-    WHERE ar.recipient_id = ? AND ar.is_read = 0
+    WHERE ar.recipient_id = :recipient_id AND ar.is_read = 0
 ");
-$stmt->bind_param("i", $coordinator_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $unread_count = $row['unread_count'];
+$stmt->execute([':recipient_id' => $coordinator_id]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($row) {
+    $unread_count = (int) $row['unread_count'];
 }
-$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -289,4 +281,3 @@ $stmt->close();
 </script>
 </body>
 </html>
-<?php $conn->close(); ?>
