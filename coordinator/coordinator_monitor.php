@@ -2,6 +2,8 @@
 session_start();
 require_once __DIR__ . '/../paths.php';
 
+require_once __DIR__ . '/../config/DBconfig.php';
+
 if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'coordinator') {
     header('Location: ../../auth/login.php');
     exit;
@@ -14,52 +16,26 @@ function displayStatus($status) {
     return 'Missing';
 }
 
-// Database configuration
-$host = 'localhost';
-$dbname = 'ojt';
-$dbuser = 'root';
-$dbpass = '';
-
 try {
-    $conn = new mysqli($host, $dbuser, $dbpass, $dbname);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
-    }
-    
-    $conn->set_charset("utf8mb4");
-
     // Get coordinator's department
     $coordinator_id = $_SESSION['user_id'];
     $department_id = null;
     $department_name = '';
 
-    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = ?");
-    if (!$stmt) {
-        throw new Exception("Prepare failed: " . $conn->error);
-    }
-    $stmt->bind_param("i", $coordinator_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
+    $stmt = $conn->prepare("SELECT department_id FROM users WHERE id = :id");
+    $stmt->execute([':id' => $coordinator_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
         $department_id = $row['department_id'];
     }
-    $stmt->close();
 
     if ($department_id) {
-        $stmt = $conn->prepare("SELECT name FROM departments WHERE id = ?");
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
-        $stmt->bind_param("i", $department_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
+        $stmt = $conn->prepare("SELECT name FROM departments WHERE id = :id");
+        $stmt->execute([':id' => $department_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
             $department_name = $row['name'];
         }
-        $stmt->close();
     }
 
     if (!$department_id) {
@@ -82,27 +58,16 @@ try {
             $sql = "SELECT p.id, p.name, COUNT(s.id) as section_count 
                     FROM programs p 
                     LEFT JOIN sections s ON p.id = s.program_id 
-                    WHERE p.department_id = ? 
+                    WHERE p.department_id = :dept_id 
                     GROUP BY p.id 
                     ORDER BY p.name";
             
             $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param('i', $department_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            $programs = [];
-            while ($row = $result->fetch_assoc()) {
-                $programs[] = $row;
-            }
-            $stmt->close();
+            $stmt->execute([':dept_id' => $department_id]);
+            $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         } catch (Exception $e) {
             $error_message = $e->getMessage();
-            $conn->close();
             header('Location: coordinator_monitor.php');
             exit;
         }
@@ -198,7 +163,6 @@ try {
         </body>
         </html>
         <?php
-        $conn->close();
         exit;
     }
 
@@ -208,19 +172,15 @@ try {
             // Get program info
             $sql = "SELECT p.name AS program_name 
                     FROM programs p 
-                    WHERE p.id = ? AND p.department_id = ?";
+                    WHERE p.id = :prog_id AND p.department_id = :dept_id";
             
             $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param('ii', $program_id, $department_id);
-            $stmt->execute();
-            $stmt->bind_result($program_name);
-            if (!$stmt->fetch()) {
+            $stmt->execute([':prog_id' => $program_id, ':dept_id' => $department_id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
                 throw new Exception("Program not found in your department");
             }
-            $stmt->close();
+            $program_name = $row['program_name'];
 
             $breadcrumbs[$department_name] = "coordinator_monitor.php";
             $breadcrumbs[$program_name] = "coordinator_monitor.php?program=$program_id";
@@ -230,27 +190,16 @@ try {
                     COUNT(st.id) as student_count
                     FROM sections s 
                     LEFT JOIN students st ON s.id = st.section_id 
-                    WHERE s.program_id = ? 
+                    WHERE s.program_id = :prog_id 
                     GROUP BY s.id, s.name
                     ORDER BY s.name";
             
             $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param('i', $program_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            $sections = [];
-            while ($row = $result->fetch_assoc()) {
-                $sections[] = $row;
-            }
-            $stmt->close();
+            $stmt->execute([':prog_id' => $program_id]);
+            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         } catch (Exception $e) {
             $error_message = $e->getMessage();
-            $conn->close();
             header("Location: coordinator_monitor.php");
             exit;
         }
@@ -343,7 +292,6 @@ try {
         </body>
         </html>
         <?php
-        $conn->close();
         exit;
     }
 
@@ -354,20 +302,18 @@ try {
             $sql = "SELECT p.name AS program_name, s.name AS section_name
                     FROM programs p 
                     JOIN sections s ON p.id = s.program_id 
-                    WHERE p.id = ? AND s.id = ? AND p.department_id = ?";
+                    WHERE p.id = :prog_id AND s.id = :section_id AND p.department_id = :dept_id";
             
             $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param('iii', $program_id, $section_id, $department_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if (!$result->num_rows) {
+            $stmt->execute([
+                ':prog_id' => $program_id,
+                ':section_id' => $section_id,
+                ':dept_id' => $department_id
+            ]);
+            $section_info = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$section_info) {
                 throw new Exception("Section not found in your department");
             }
-            $section_info = $result->fetch_assoc();
-            $stmt->close();
 
             $breadcrumbs[$department_name] = "coordinator_monitor.php";
             $breadcrumbs[$section_info['program_name']] = "coordinator_monitor.php?program=$program_id";
@@ -381,26 +327,15 @@ try {
                     st.hours_completed,
                     st.total_hours
                     FROM students st
-                    WHERE st.section_id = ?
+                    WHERE st.section_id = :section_id
                     ORDER BY st.name";
             
             $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                throw new Exception("Prepare failed: " . $conn->error);
-            }
-            $stmt->bind_param('i', $section_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            $students = [];
-            while ($row = $result->fetch_assoc()) {
-                $students[] = $row;
-            }
-            $stmt->close();
+            $stmt->execute([':section_id' => $section_id]);
+            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         } catch (Exception $e) {
             $error_message = $e->getMessage();
-            $conn->close();
             header("Location: coordinator_monitor.php?program=$program_id");
             exit;
         }
@@ -567,7 +502,6 @@ try {
         </body>
         </html>
         <?php
-        $conn->close();
         exit;
     }
 
@@ -576,7 +510,6 @@ try {
 }
 
 // Fallback: redirect to monitoring root
-$conn->close();
 header('Location: coordinator_monitor.php');
 exit;
 ?>
